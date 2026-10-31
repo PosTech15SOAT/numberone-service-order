@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.numberone.invalid/saga/v1/events/MaterialsConsumptionFailed.schema.json",
+  "title": "MaterialsConsumptionFailed",
+  "description": "Rascunho v1. inventory-service -> os-service. Não aprovado pela equipe.",
+  "allOf": [
+    {
+      "$ref": "https://contracts.numberone.invalid/saga/v1/envelope.schema.json"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "MaterialsConsumptionFailed"
+        },
+        "producer": {
+          "const": "inventory-service"
+        },
+        "causationId": {
+          "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/uuid"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "budgetRevision": {
+              "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/revision"
+            },
+            "reservationId": {
+              "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/uuid"
+            },
+            "serviceOrderItemId": {
+              "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/uuid"
+            },
+            "reasonCode": {
+              "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/reason"
+            },
+            "detail": {
+              "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/detail"
+            }
+          },
+          "required": [
+            "budgetRevision",
+            "reservationId",
+            "serviceOrderItemId",
+            "reasonCode"
+          ],
+          "additionalProperties": true
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    }
+  ]
+}
