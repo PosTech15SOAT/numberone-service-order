@@ -1,0 +1,9 @@
+.git
+.env*
+target
+.venv
+__pycache__
+*.log
+doc
+scripts
+k8s
