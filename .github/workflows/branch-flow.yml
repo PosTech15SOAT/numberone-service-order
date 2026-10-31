@@ -1,0 +1,26 @@
+name: Branch flow validation
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate-source:
+    name: Validate promotion source
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Require develop as source branch
+        shell: bash
+        env:
+          SOURCE_BRANCH: ${{ github.head_ref }}
+        run: |
+          if [[ "$SOURCE_BRANCH" != "develop" ]]; then
+            echo "::error::Pull requests to main must originate from develop."
+            exit 1
+          fi
