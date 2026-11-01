@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.numberone.invalid/saga/v1/message.schema.json",
+  "description": "Entrada de validação completa. Envelope isolado não valida payload.",
+  "oneOf": [
+    {
+      "$ref": "https://contracts.numberone.invalid/saga/v1/commands/CreateBudget.schema.json"
+    },
+    {
+      "$ref": "https://contracts.numberone.invalid/saga/v1/events/BudgetSent.schema.json"
+    },
+    {
+      "$ref": "https://contracts.numberone.invalid/saga/v1/events/BudgetCreationFailed.schema.json"
+    },
+    {
+      "$ref": "https://contracts.numberone.invalid/saga/v1/events/BudgetNotificationFailed.schema.json"
+    },
+    {
+      "$ref": "https://contracts.numberone.invalid/saga/v1/events/BudgetApproved.schema.json"
+    },
+    {
+      "$ref": "https://contracts.numberone.invalid/saga/v1/events/BudgetRejected.schema.json"
+    },
+    {
+      "$ref": "https://contracts.numberone.invalid/saga/v1/commands/ReserveMaterials.schema.json"
+    },
+    {
+      "$ref": "https://contracts.numberone.invalid/saga/v1/events/MaterialsReserved.schema.json"
+    },
+    {
+      "$ref": "https://contracts.numberone.invalid/saga/v1/events/MaterialsReservationFailed.schema.json"
+    },
+    {
+      "$ref": "https://contracts.numberone.invalid/saga/v1/commands/RequestPayment.schema.json"
+    },
+    {
+      "$ref": "https://contracts.numberone.invalid/saga/v1/events/PaymentPending.schema.json"
+    },
+    {
+      "$ref": "https://contracts.numberone.invalid/saga/v1/events/PaymentConfirmed.schema.json"
+    },
+    {
+      "$ref": "https://contracts.numberone.invalid/saga/v1/events/PaymentFailed.schema.json"
+    },
+    {
+      "$ref": "https://contracts.numberone.invalid/saga/v1/commands/ConsumeMaterials.schema.json"
+    },
+    {
+      "$ref": "https://contracts.numberone.invalid/saga/v1/events/MaterialsConsumed.schema.json"
+    },
+    {
+      "$ref": "https://contracts.numberone.invalid/saga/v1/events/MaterialsConsumptionFailed.schema.json"
+    },
+    {
+      "$ref": "https://contracts.numberone.invalid/saga/v1/commands/ReleaseMaterials.schema.json"
+    },
+    {
+      "$ref": "https://contracts.numberone.invalid/saga/v1/events/MaterialsReleased.schema.json"
+    },
+    {
+      "$ref": "https://contracts.numberone.invalid/saga/v1/events/MaterialsAlreadyConsumed.schema.json"
+    },
+    {
+      "$ref": "https://contracts.numberone.invalid/saga/v1/commands/CancelBilling.schema.json"
+    },
+    {
+      "$ref": "https://contracts.numberone.invalid/saga/v1/events/BillingCompensated.schema.json"
+    }
+  ]
+}

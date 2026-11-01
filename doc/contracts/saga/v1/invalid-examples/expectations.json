@@ -1,0 +1,130 @@
+{
+  "cases": [
+    {
+      "file": "missing-branch.json",
+      "type": "ReserveMaterials",
+      "keyword": "required",
+      "pointer": "/"
+    },
+    {
+      "file": "invalid-uuid.json",
+      "type": "ReserveMaterials",
+      "keyword": "format",
+      "pointer": "/operationId"
+    },
+    {
+      "file": "invalid-calendar-date.json",
+      "type": "BudgetApproved",
+      "keyword": "format",
+      "pointer": "/payload/approvedAt"
+    },
+    {
+      "file": "non-utc-date.json",
+      "type": "BudgetApproved",
+      "keyword": "pattern",
+      "pointer": "/payload/approvedAt"
+    },
+    {
+      "file": "zero-quantity.json",
+      "type": "ReserveMaterials",
+      "keyword": "minimum",
+      "pointer": "/payload/allocations/0/materials/0/quantity"
+    },
+    {
+      "file": "negative-quantity.json",
+      "type": "CreateBudget",
+      "keyword": "minimum",
+      "pointer": "/payload/serviceItems/0/quantity"
+    },
+    {
+      "file": "fractional-quantity.json",
+      "type": "ReserveMaterials",
+      "keyword": "type",
+      "pointer": "/payload/allocations/0/materials/0/quantity"
+    },
+    {
+      "file": "invalid-revision.json",
+      "type": "BudgetApproved",
+      "keyword": "minimum",
+      "pointer": "/payload/budgetRevision"
+    },
+    {
+      "file": "wrong-money-format.json",
+      "type": "PaymentConfirmed",
+      "keyword": "pattern",
+      "pointer": "/payload/totalAmount"
+    },
+    {
+      "file": "numeric-money.json",
+      "type": "PaymentConfirmed",
+      "keyword": "type",
+      "pointer": "/payload/totalAmount"
+    },
+    {
+      "file": "negative-money.json",
+      "type": "BudgetApproved",
+      "keyword": "pattern",
+      "pointer": "/payload/totalAmount"
+    },
+    {
+      "file": "wrong-type.json",
+      "type": "ReserveMaterials",
+      "keyword": "const",
+      "pointer": "/type"
+    },
+    {
+      "file": "unsupported-version.json",
+      "type": "ReserveMaterials",
+      "keyword": "const",
+      "pointer": "/schemaVersion"
+    },
+    {
+      "file": "wrong-producer.json",
+      "type": "ReserveMaterials",
+      "keyword": "const",
+      "pointer": "/producer"
+    },
+    {
+      "file": "missing-approved-items.json",
+      "type": "BudgetApproved",
+      "keyword": "required",
+      "pointer": "/payload"
+    },
+    {
+      "file": "empty-reservation.json",
+      "type": "ReserveMaterials",
+      "keyword": "minItems",
+      "pointer": "/payload/allocations"
+    },
+    {
+      "file": "missing-event-causation.json",
+      "type": "MaterialsReserved",
+      "keyword": "type",
+      "pointer": "/causationId"
+    },
+    {
+      "file": "refund-without-reference.json",
+      "type": "BillingCompensated",
+      "keyword": "required",
+      "pointer": "/payload"
+    },
+    {
+      "file": "released-without-reservation.json",
+      "type": "MaterialsReleased",
+      "keyword": "required",
+      "pointer": "/payload"
+    },
+    {
+      "file": "invalid-trace.json",
+      "type": "ReserveMaterials",
+      "keyword": "pattern",
+      "pointer": "/traceparent"
+    },
+    {
+      "file": "unknown-message-type.json",
+      "type": "ReserveMaterials",
+      "keyword": "enum",
+      "pointer": "/type"
+    }
+  ]
+}

@@ -10,6 +10,10 @@ Origem: `PosTech15SOAT/numberone-app-auto-service-api`, develop
 Status: fase 1 em revisão. [Progresso e evidências](doc/progress/fase-1.md).
 Não há deploy habilitado. Contratos dependem de revisão da equipe.
 
+Entregas: **1A** base executável e **1B** [contratos da Saga](doc/contracts/saga/v1/README.md).
+Veja [roteiro de demonstração](doc/progress/demonstracao-fase-1.md),
+[entrega aos membros](doc/progress/entrega-fase-1.md) e [ADRs](doc/adr/).
+
 ## Executar localmente (PowerShell)
 
 Pré-requisitos: Docker Desktop com engine Linux. O JDK do host é opcional nestes comandos.
@@ -34,6 +38,8 @@ Com JDK **25** instalado: `./mvnw clean verify` (Linux) ou `./mvnw.cmd clean ver
 ```powershell
 docker run --rm --mount "type=bind,source=$((Get-Location).Path),target=/workspace" --mount type=volume,source=numberone-os-phase1-maven,target=/root/.m2 -w /workspace maven:3.9.11-eclipse-temurin-25 sh ./mvnw -B -ntp clean verify
 docker build -t numberone-service-order:local .
+docker build -f scripts/contracts.Dockerfile -t numberone-os-contract-validation .
+docker run --rm --network none --mount "type=bind,source=$((Get-Location).Path),target=/workspace" numberone-os-contract-validation
 ```
 
 O primeiro download precisa de rede. `test` roda regras técnicas de correlação;

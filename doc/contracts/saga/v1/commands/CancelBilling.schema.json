@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.numberone.invalid/saga/v1/commands/CancelBilling.schema.json",
+  "title": "CancelBilling",
+  "description": "Rascunho v1. os-service -> billing-service. Não aprovado pela equipe.",
+  "allOf": [
+    {
+      "$ref": "https://contracts.numberone.invalid/saga/v1/envelope.schema.json"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "CancelBilling"
+        },
+        "producer": {
+          "const": "os-service"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "budgetRevision": {
+              "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/revision"
+            },
+            "budgetId": {
+              "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/uuid"
+            },
+            "paymentAttemptId": {
+              "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/uuid"
+            },
+            "reasonCode": {
+              "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/reason"
+            },
+            "detail": {
+              "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/detail"
+            }
+          },
+          "required": [
+            "budgetRevision",
+            "reasonCode"
+          ],
+          "additionalProperties": true
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    }
+  ]
+}
