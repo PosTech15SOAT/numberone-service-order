@@ -11,7 +11,11 @@ public class HttpErrorResponseWriter {
         response.setStatus(status);
         response.setCharacterEncoding("UTF-8");
         response.setContentType("application/problem+json");
-        String title = status == 400 ? "Invalid correlation header" : "Access denied";
+        String title = switch (status) {
+            case 400 -> "Invalid correlation header";
+            case 401 -> "Authentication required";
+            default -> "Access denied";
+        };
         response.getWriter().write("{\"type\":\"about:blank\",\"title\":\"" + title
                 + "\",\"status\":" + status + "}");
     }

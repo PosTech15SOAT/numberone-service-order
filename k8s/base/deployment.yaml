@@ -26,6 +26,22 @@ spec:
             - name: http
               containerPort: 8080
           env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: production
+            - name: DB_URL
+              valueFrom:
+                secretKeyRef: {name: numberone-os-database, key: url}
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef: {name: numberone-os-database, key: username}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: numberone-os-database, key: password}
+            - name: OS_BRANCH_ID
+              valueFrom:
+                configMapKeyRef: {name: numberone-os-runtime, key: branch-id}
+            - name: GATEWAY_HEADERS_TRUSTED
+              value: "false"
             - name: DD_SERVICE
               value: numberone-service-order
             - name: DD_ENV

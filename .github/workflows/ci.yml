@@ -3,7 +3,7 @@ on:
   push:
     branches: [main, develop]
   pull_request:
-    branches: [main, develop, feature/fase-1a-base]
+    branches: [main, develop, feature/fase-1a-base, feature/fase-1b-contratos]
 permissions:
   contents: read
 concurrency:
@@ -21,7 +21,7 @@ jobs:
           distribution: temurin
           java-version: '25'
           cache: maven
-      - name: Build, technical rules and real HTTP tests
+      - name: Build, domain rules, real PostgreSQL and HTTP tests
         run: ./mvnw --batch-mode clean verify
       - name: Build portable contract validator
         run: docker build -f scripts/contracts.Dockerfile -t os-contract-validation .
