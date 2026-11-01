@@ -1,11 +1,13 @@
 # Registro de progresso — fase 1
 
 Data: 31/10/2026. Responsável pela revisão: Matheus.
-Status: **1A e 1B implementadas localmente para revisão; fase não concluída nem aprovada**.
+Status: **1A e 1B publicadas em PRs para revisão; fase não concluída nem aprovada**.
 
 Entrega 1A: `11f3b82182ff694c6472e24e780d843642cde97b`, branch `feature/fase-1a-base`.
 Entrega 1B: branch `feature/fase-1b-contratos`, construída sobre 1A. O commit exato
-é o HEAD dessa branch (`git rev-parse feature/fase-1b-contratos`). Não há PR remoto.
+é o HEAD dessa branch (`git rev-parse feature/fase-1b-contratos`).
+[PR #1 — 1A](https://github.com/PosTech15SOAT/numberone-service-order/pull/1) e
+[PR #2 — 1B](https://github.com/PosTech15SOAT/numberone-service-order/pull/2) abertos.
 Consultar [handoff](entrega-fase-1.md) para retomar em outra conversa.
 
 ## 1A — base
@@ -28,7 +30,7 @@ Comandos completos de build/execução no README. Executados via Docker Desktop
 | `/actuator/health`, `/liveness`, `/readiness` e `/api/public/health` | probes UP; health identifica `numberone-service-order` |
 | `kubectl kustomize k8s/base` + kubeconform v0.8.0, Kubernetes 1.36.0 | 2 recursos válidos; 0 inválidos/erros/skips |
 | `docker compose down` | somente container/rede da OS removidos após demonstração |
-| GitHub Actions / rulesets | não executado/não aplicado: publicação pendente |
+| GitHub Actions / rulesets | Required validation aprovado nos PRs #1/#2; rulesets continuam pendentes |
 
 Imagem local: `sha256:f25ee490518030f35198abe3b4af39254c65077bf8ec98988529bf1b09e8ce2f`.
 Build Maven aprovado às 18:43:20 America/Sao_Paulo em 31/10/2026.
@@ -95,25 +97,33 @@ permanecem independentes de linguagem. Sem congelar v1 por conta própria.
 - [x] Checkout independente, origem registrada; nenhum legado sobrescrito.
 - [x] Build, execução local, health/readiness e imagem demonstrados com comandos reais.
 - [x] Workflows preparados com Required validation e Validate promotion source; nenhum deploy.
-- [x] Limitação de CI remoto comprovada: publicação rejeitada pela revisão automática.
+- [x] Bloqueio inicial de publicação resolvido por autorização explícita do usuário.
 - [x] Cada mensagem da matriz possui schema e fixture; inválidos rejeitados por motivo esperado.
 - [x] Contratos cobrem início pendente, falta de estoque, duplicação, compensação e UNKNOWN.
 - [x] Pacote local, ADRs, roteiro e entrega aos quatro membros preparados.
-- [ ] Repositório público/PRs publicados — depende de autorização explícita.
-- [ ] Actions executado e governança aplicada — pendentes; não confundir com YAML validado.
+- [x] Repositório público e PRs #1/#2 publicados após autorização explícita.
+- [x] Required validation executado e aprovado nos PRs #1/#2, conferido em 01/11/2026.
+- [ ] Governança aplicada e Validate promotion source executado — pendentes.
 - [ ] Matheus revisou e aprovou a fase 1.
 - [ ] Julio, Anderson e Marcelo validaram contratos, com commit/versão e decisões registrados.
 
 **Não declarar fase concluída:** aceite humano obrigatório ainda não demonstrado.
-Artefatos estão prontos para revisão local; [roteiro reproduzível](demonstracao-fase-1.md)
+Artefatos estão prontos para revisão nos PRs; [roteiro reproduzível](demonstracao-fase-1.md)
 inclui PowerShell, comandos/resultados esperados e limites das provas.
 
-## Impedimentos de publicação
+## Publicação autorizada
 
-Revisão automática rejeitou criar repositório público/enviar commits por exigir
-autorização explícita para publicação externa. Trabalho continua local, sem
-modificar os cinco repositórios existentes. CI remoto e governança permanecem pendentes.
+Revisão automática inicialmente rejeitou criar repositório público/enviar commits.
+Em 31/10/2026 o usuário autorizou explicitamente a publicação. Após reconferir o
+destino, o repositório foi criado e as branches/PRs publicados. Nenhum dos cinco
+repositórios existentes foi alterado; não houve merge, deploy ou avanço de fase.
+Governança da OS continua pendente de Marcelo; contratos continuam DRAFT.
 
 ## Encerramento
 
-Não iniciar fase 2 antes da revisão de Matheus. Não fazer merge ou deploy.
+Em 01/11/2026 o usuário autorizou explicitamente iniciar somente a fase 2.
+Isso autoriza avançar a implementação incremental; não representa aprovação dos
+contratos por Julio/Anderson/Marcelo nem autorização de merge/deploy. Os PRs #1/#2
+continuam abertos. CI comprovado: [1A](https://github.com/PosTech15SOAT/numberone-service-order/actions/runs/41246164142)
+e [1B](https://github.com/PosTech15SOAT/numberone-service-order/actions/runs/41246168717).
+Fase 2 será empilhada sobre a 1B, preservando main/develop e os PRs existentes.
