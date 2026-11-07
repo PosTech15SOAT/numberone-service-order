@@ -1,0 +1,403 @@
+{
+  "scope": "body-schema-only; headers, races and business transitions require phase 2+ tests",
+  "cases": [
+    {
+      "file": "http-examples/consume-request.json",
+      "document": "inventory.openapi.yaml",
+      "path": "/internal/inventory/consumptions",
+      "method": "post",
+      "status": "request",
+      "valid": true
+    },
+    {
+      "file": "http-examples/consumed.json",
+      "document": "inventory.openapi.yaml",
+      "path": "/internal/inventory/operations/{operationId}",
+      "method": "get",
+      "status": "200",
+      "valid": true
+    },
+    {
+      "file": "http-examples/consumed-direct.json",
+      "document": "inventory.openapi.yaml",
+      "path": "/internal/inventory/consumptions",
+      "method": "post",
+      "status": "200",
+      "valid": true
+    },
+    {
+      "file": "http-examples/insufficient-stock.json",
+      "document": "inventory.openapi.yaml",
+      "path": "/internal/inventory/operations/{operationId}",
+      "method": "get",
+      "status": "200",
+      "valid": true
+    },
+    {
+      "file": "http-examples/insufficient-stock-direct.json",
+      "document": "inventory.openapi.yaml",
+      "path": "/internal/inventory/consumptions",
+      "method": "post",
+      "status": "409",
+      "valid": true
+    },
+    {
+      "file": "http-examples/closed.json",
+      "document": "inventory.openapi.yaml",
+      "path": "/internal/inventory/operations/{operationId}",
+      "method": "get",
+      "status": "200",
+      "valid": true
+    },
+    {
+      "file": "http-examples/closed-direct.json",
+      "document": "inventory.openapi.yaml",
+      "path": "/internal/inventory/consumptions/{operationId}/reversal",
+      "method": "post",
+      "status": "200",
+      "valid": true
+    },
+    {
+      "file": "http-examples/reversed.json",
+      "document": "inventory.openapi.yaml",
+      "path": "/internal/inventory/operations/{operationId}",
+      "method": "get",
+      "status": "200",
+      "valid": true
+    },
+    {
+      "file": "http-examples/reversed-direct.json",
+      "document": "inventory.openapi.yaml",
+      "path": "/internal/inventory/consumptions/{operationId}/reversal",
+      "method": "post",
+      "status": "200",
+      "valid": true
+    },
+    {
+      "file": "http-examples/unknown.json",
+      "document": "inventory.openapi.yaml",
+      "path": "/internal/inventory/operations/{operationId}",
+      "method": "get",
+      "status": "404",
+      "valid": true
+    },
+    {
+      "file": "http-examples/pending.json",
+      "document": "inventory.openapi.yaml",
+      "path": "/internal/inventory/operations/{operationId}",
+      "method": "get",
+      "status": "202",
+      "valid": true
+    },
+    {
+      "file": "http-examples/attempt_closed.json",
+      "document": "inventory.openapi.yaml",
+      "path": "/internal/inventory/consumptions",
+      "method": "post",
+      "status": "409",
+      "valid": true
+    },
+    {
+      "file": "http-examples/attempt_reversed.json",
+      "document": "inventory.openapi.yaml",
+      "path": "/internal/inventory/consumptions",
+      "method": "post",
+      "status": "409",
+      "valid": true
+    },
+    {
+      "file": "http-examples/idempotency_conflict.json",
+      "document": "inventory.openapi.yaml",
+      "path": "/internal/inventory/consumptions",
+      "method": "post",
+      "status": "409",
+      "valid": true
+    },
+    {
+      "file": "http-examples/consume-timeout.json",
+      "document": "inventory.openapi.yaml",
+      "path": "/internal/inventory/consumptions",
+      "method": "post",
+      "status": "504",
+      "valid": true
+    },
+    {
+      "file": "http-examples/reversal-request.json",
+      "document": "inventory.openapi.yaml",
+      "path": "/internal/inventory/consumptions/{operationId}/reversal",
+      "method": "post",
+      "status": "request",
+      "valid": true
+    },
+    {
+      "file": "http-examples/availability.json",
+      "document": "inventory.openapi.yaml",
+      "path": "/internal/inventory/availability",
+      "method": "get",
+      "status": "200",
+      "valid": true
+    },
+    {
+      "file": "http-examples/settled.json",
+      "document": "billing.openapi.yaml",
+      "path": "/internal/payments/service-orders/{serviceOrderId}/settlement",
+      "method": "get",
+      "status": "200",
+      "valid": true
+    },
+    {
+      "file": "http-examples/unsettled.json",
+      "document": "billing.openapi.yaml",
+      "path": "/internal/payments/service-orders/{serviceOrderId}/settlement",
+      "method": "get",
+      "status": "200",
+      "valid": true
+    },
+    {
+      "file": "http-examples/cancel-request.json",
+      "document": "billing.openapi.yaml",
+      "path": "/internal/budgets/{budgetId}/cancellation",
+      "method": "post",
+      "status": "request",
+      "valid": true
+    },
+    {
+      "file": "http-examples/cancelled.json",
+      "document": "billing.openapi.yaml",
+      "path": "/internal/budgets/{budgetId}/cancellation",
+      "method": "post",
+      "status": "200",
+      "valid": true
+    },
+    {
+      "file": "http-examples/cancel-budget_version_conflict.json",
+      "document": "billing.openapi.yaml",
+      "path": "/internal/budgets/{budgetId}/cancellation",
+      "method": "post",
+      "status": "409",
+      "valid": true
+    },
+    {
+      "file": "http-examples/cancel-budget_not_eligible.json",
+      "document": "billing.openapi.yaml",
+      "path": "/internal/budgets/{budgetId}/cancellation",
+      "method": "post",
+      "status": "409",
+      "valid": true
+    },
+    {
+      "file": "http-examples/cancel-financial_effect_pending.json",
+      "document": "billing.openapi.yaml",
+      "path": "/internal/budgets/{budgetId}/cancellation",
+      "method": "post",
+      "status": "409",
+      "valid": true
+    },
+    {
+      "file": "http-examples/cancel-idempotency_conflict.json",
+      "document": "billing.openapi.yaml",
+      "path": "/internal/budgets/{budgetId}/cancellation",
+      "method": "post",
+      "status": "409",
+      "valid": true
+    },
+    {
+      "file": "http-examples/os-completed.json",
+      "document": "os-internal.openapi.yaml",
+      "path": "/internal/service-orders/{serviceOrderId}",
+      "method": "get",
+      "status": "200",
+      "valid": true
+    },
+    {
+      "file": "http-examples/quotation-context.json",
+      "document": "os-internal.openapi.yaml",
+      "path": "/internal/service-orders/{serviceOrderId}/quotation-context",
+      "method": "get",
+      "status": "200",
+      "valid": true
+    },
+    {
+      "file": "http-examples/start-pending.json",
+      "document": "os-api.openapi.yaml",
+      "path": "/api/admin/itens-ordem-servico/{id}/iniciar",
+      "method": "patch",
+      "status": "202",
+      "valid": true
+    },
+    {
+      "file": "http-examples/item-started.json",
+      "document": "os-api.openapi.yaml",
+      "path": "/api/admin/itens-ordem-servico/{id}/iniciar",
+      "method": "patch",
+      "status": "200",
+      "valid": true
+    },
+    {
+      "file": "http-examples/tracking-timeout.json",
+      "document": "os-api.openapi.yaml",
+      "path": "/api/public/ordens-servico/{id}/acompanhamento",
+      "method": "get",
+      "status": "200",
+      "valid": true
+    },
+    {
+      "file": "http-examples/tracking-insufficient.json",
+      "document": "os-api.openapi.yaml",
+      "path": "/api/public/ordens-servico/{id}/acompanhamento",
+      "method": "get",
+      "status": "200",
+      "valid": true
+    },
+    {
+      "file": "http-examples/delivered.json",
+      "document": "os-api.openapi.yaml",
+      "path": "/api/admin/ordens-servico/{id}/entregar",
+      "method": "patch",
+      "status": "200",
+      "valid": true
+    },
+    {
+      "file": "http-examples/delivery-timeout.json",
+      "document": "os-api.openapi.yaml",
+      "path": "/api/admin/ordens-servico/{id}/entregar",
+      "method": "patch",
+      "status": "504",
+      "valid": true
+    },
+    {
+      "file": "http-examples/delivery-unsettled.json",
+      "document": "os-api.openapi.yaml",
+      "path": "/api/admin/ordens-servico/{id}/entregar",
+      "method": "patch",
+      "status": "409",
+      "valid": true
+    },
+    {
+      "file": "http-examples/invalid-zero-quantity.json",
+      "document": "inventory.openapi.yaml",
+      "path": "/internal/inventory/consumptions",
+      "method": "post",
+      "status": "request",
+      "valid": false,
+      "keyword": "minimum",
+      "pointer": "/items/0/quantity"
+    },
+    {
+      "file": "http-examples/invalid-fractional-quantity.json",
+      "document": "inventory.openapi.yaml",
+      "path": "/internal/inventory/consumptions",
+      "method": "post",
+      "status": "request",
+      "valid": false,
+      "keyword": "type",
+      "pointer": "/items/0/quantity"
+    },
+    {
+      "file": "http-examples/invalid-empty-consumption.json",
+      "document": "inventory.openapi.yaml",
+      "path": "/internal/inventory/consumptions",
+      "method": "post",
+      "status": "request",
+      "valid": false,
+      "keyword": "minItems",
+      "pointer": "/items"
+    },
+    {
+      "file": "http-examples/invalid-evidence.json",
+      "document": "inventory.openapi.yaml",
+      "path": "/internal/inventory/consumptions/{operationId}/reversal",
+      "method": "post",
+      "status": "request",
+      "valid": false,
+      "keyword": "enum",
+      "pointer": "/unusedConfirmed"
+    },
+    {
+      "file": "http-examples/invalid-missing-evidence.json",
+      "document": "inventory.openapi.yaml",
+      "path": "/internal/inventory/consumptions/{operationId}/reversal",
+      "method": "post",
+      "status": "request",
+      "valid": false,
+      "keyword": "required",
+      "pointer": "/"
+    },
+    {
+      "file": "http-examples/invalid-closed-with-movement.json",
+      "document": "inventory.openapi.yaml",
+      "path": "/internal/inventory/operations/{operationId}",
+      "method": "get",
+      "status": "200",
+      "valid": false,
+      "keyword": "oneOf",
+      "pointer": "/"
+    },
+    {
+      "file": "http-examples/invalid-reversed-without-compensation.json",
+      "document": "inventory.openapi.yaml",
+      "path": "/internal/inventory/operations/{operationId}",
+      "method": "get",
+      "status": "200",
+      "valid": false,
+      "keyword": "oneOf",
+      "pointer": "/"
+    },
+    {
+      "file": "http-examples/invalid-partial-stock-rejection.json",
+      "document": "inventory.openapi.yaml",
+      "path": "/internal/inventory/consumptions",
+      "method": "post",
+      "status": "409",
+      "valid": false,
+      "keyword": "oneOf",
+      "pointer": "/"
+    },
+    {
+      "file": "http-examples/invalid-settlement.json",
+      "document": "billing.openapi.yaml",
+      "path": "/internal/payments/service-orders/{serviceOrderId}/settlement",
+      "method": "get",
+      "status": "200",
+      "valid": false,
+      "keyword": "oneOf",
+      "pointer": "/"
+    },
+    {
+      "file": "http-examples/invalid-pending-started.json",
+      "document": "os-api.openapi.yaml",
+      "path": "/api/admin/itens-ordem-servico/{id}/iniciar",
+      "method": "patch",
+      "status": "202",
+      "valid": false,
+      "keyword": "enum",
+      "pointer": "/status"
+    },
+    {
+      "file": "http-examples/order-start-pending.json",
+      "document": "os-api.openapi.yaml",
+      "path": "/api/admin/ordens-servico/{id}/iniciar",
+      "method": "patch",
+      "status": "202",
+      "valid": true
+    },
+    {
+      "file": "http-examples/order-started.json",
+      "document": "os-api.openapi.yaml",
+      "path": "/api/admin/ordens-servico/{id}/iniciar",
+      "method": "patch",
+      "status": "200",
+      "valid": true
+    },
+    {
+      "file": "http-examples/invalid-premature-delivery.json",
+      "document": "os-api.openapi.yaml",
+      "path": "/api/admin/ordens-servico/{id}/entregar",
+      "method": "patch",
+      "status": "200",
+      "valid": false,
+      "keyword": "enum",
+      "pointer": "/status"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "serviceOrderId": "00000001-0000-4000-8000-000000000001",
+  "status": "IN_DIAGNOSIS",
+  "compositionVersion": 3,
+  "items": [
+    {
+      "serviceOrderItemId": "00000004-0000-4000-8000-000000000001",
+      "automotiveServiceId": "00000006-0000-4000-8000-000000000001",
+      "serviceAmount": "150.00",
+      "supplies": [
+        {
+          "inventoryItemId": "00000005-0000-4000-8000-000000000001",
+          "quantity": 1
+        }
+      ]
+    }
+  ]
+}

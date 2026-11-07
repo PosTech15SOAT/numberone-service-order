@@ -1,0 +1,665 @@
+openapi: 3.0.3
+info:
+  title: OS — API compatível e início pendente
+  version: 2.0.0-review.1
+  description: Proposta revisável fase 1B. Sem implementação ou aceite externo; decisões em decisions.md.
+servers:
+- url: https://gateway.example.invalid
+security:
+- GatewayIdentity: []
+paths:
+  /api/admin/itens-ordem-servico/{id}/iniciar:
+    patch:
+      operationId: requestServiceOrderItemStart
+      description: 'Sem body, rota legada. Orçamento vigente aprovado e composição vinculada; sem guarda financeira.
+        Materiais: persistir intenção REST e retornar 202, status comercial continua PENDENTE/AGUARDANDO_PECAS_E_INSUMOS;
+        executionState=START_PENDING. Só CONSUMED + guardas locais confirma execução. Timeout mantém pendência e
+        mesma tentativa. Sem materiais: 200 local. Idempotency-Key opcional para compatibilidade; sem header, servidor
+        reutiliza tentativa ativa por item/composição sob lock. Após falta confirmada, nova ação explícita cria
+        nova tentativa; cliente antigo deve consultar andamento antes de repetir. Com header, mesma chave/conteúdo
+        sempre recupera a mesma operação.'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      responses:
+        '200':
+          description: Início confirmado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StartedItem'
+        '202':
+          description: Intenção durável; acompanhar GET, sem autorizar uso físico.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PendingItem'
+          headers:
+            Location:
+              description: /api/public/ordens-servico/{idOrdemServico}/acompanhamento
+              schema:
+                type: string
+        '400':
+          description: INVALID_REQUEST; formato ou IDs divergentes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/TechnicalProblem'
+        '401':
+          description: UNAUTHENTICATED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/TechnicalProblem'
+        '403':
+          description: FORBIDDEN; serviço/posse/filial sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/TechnicalProblem'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+        '409':
+          description: STALE_APPROVAL, NOT_APPROVED, CANCELLATION_IN_PROGRESS, IDEMPOTENCY_CONFLICT ou INSUFFICIENT_STOCK
+            quando já confirmado. Recusa de estoque posterior ao 202 aparece no acompanhamento; não reescrever resposta
+            enviada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+        '503':
+          description: DEPENDENCY_UNAVAILABLE; resultado desconhecido, repetir identidade original.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+  /api/public/ordens-servico/{id}/acompanhamento:
+    get:
+      operationId: getServiceOrderTracking
+      description: 'Preserva DTO público autorizado, sem branchId/attemptId obrigatórios. Campos técnicos adicionais
+        não substituem status em português. Após falta de saldo: item AGUARDANDO_PECAS_E_INSUMOS; após timeout:
+        START_PENDING com startOperationId estável. Sem dados de provedor ou credenciais.'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      responses:
+        '200':
+          description: Estado local; dados financeiros projetados não autorizam entrega.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tracking'
+        '400':
+          description: INVALID_REQUEST; formato ou IDs divergentes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/TechnicalProblem'
+        '401':
+          description: UNAUTHENTICATED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/TechnicalProblem'
+        '403':
+          description: FORBIDDEN; serviço/posse/filial sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/TechnicalProblem'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+        '503':
+          description: DEPENDENCY_UNAVAILABLE; resultado desconhecido, repetir identidade original.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+  /api/admin/ordens-servico/{id}/iniciar:
+    patch:
+      operationId: requestOrderStart
+      description: 'Rota legada sem body. Proposta pendente Matheus: registra intenção de início da ordem; não baixa
+        saldo nem autoriza uso físico. Com materiais ainda não confirmados, 202 com status APROVADA; primeiro item
+        confirmado muda EM_EXECUCAO. Cliente inicia itens pela rota própria. Sem itens elegíveis retorna 409. Sem
+        materiais pode confirmar localmente após guardas.'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      responses:
+        '200':
+          description: Execução confirmada localmente conforme itens.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StartedOrder'
+        '202':
+          description: Intenção recebida, itens ainda devem iniciar; consultar acompanhamento.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PendingOrder'
+          headers:
+            Location:
+              description: /api/public/ordens-servico/{id}/acompanhamento
+              schema:
+                type: string
+        '400':
+          description: INVALID_REQUEST; formato ou IDs divergentes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/TechnicalProblem'
+        '401':
+          description: UNAUTHENTICATED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/TechnicalProblem'
+        '403':
+          description: FORBIDDEN; serviço/posse/filial sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/TechnicalProblem'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+        '409':
+          description: Conflito de negócio ou IDEMPOTENCY_CONFLICT; ver códigos da operação.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+        '503':
+          description: DEPENDENCY_UNAVAILABLE; resultado desconhecido, repetir identidade original.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+  /api/admin/ordens-servico/{id}/entregar:
+    patch:
+      operationId: deliverServiceOrder
+      description: Rota legada sem body. Exige OS FINALIZADA, CT-07 settled=true recém-consultado e revalidação
+        local da versão/ausência de compensação antes do commit ENTREGUE. Entrega repetida devolve estado entregue
+        sem novo efeito. CANCELADA não pode usar esta rota até política de retirada ser acordada. EV-03 atrasado
+        não impede consulta oficial; evento isolado não autoriza.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      responses:
+        '200':
+          description: Entrega registrada, status ENTREGUE.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveredOrder'
+        '400':
+          description: INVALID_REQUEST; formato ou IDs divergentes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/TechnicalProblem'
+        '401':
+          description: UNAUTHENTICATED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/TechnicalProblem'
+        '403':
+          description: FORBIDDEN; serviço/posse/filial sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/TechnicalProblem'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+        '409':
+          description: NOT_COMPLETED, NOT_SETTLED, CANCELLATION_IN_PROGRESS ou CANCELLED_WITHDRAWAL_POLICY_PENDING.
+            Preservar estado local; nunca entregar por timeout.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+        '503':
+          description: DEPENDENCY_UNAVAILABLE; resultado desconhecido, repetir identidade original.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+        '504':
+          description: DEPENDENCY_TIMEOUT; não prova ausência de efeito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+components:
+  securitySchemes:
+    ServiceIdentity:
+      type: http
+      scheme: bearer
+      description: 'Proposta pendente Marcelo: credencial de serviço com audiência/permissões; nunca JWT de cliente.'
+    GatewayIdentity:
+      type: http
+      scheme: bearer
+      description: Gateway valida e sobrescreve X-Authenticated-*; OS verifica permissão, posse e filial. public
+        na rota não significa anônimo.
+  schemas:
+    Problem:
+      oneOf:
+      - $ref: '#/components/schemas/LegacyError'
+      - $ref: '#/components/schemas/TechnicalProblem'
+    OrderStatus:
+      type: string
+      enum:
+      - RECEBIDA
+      - EM_DIAGNOSTICO
+      - AGUARDANDO_APROVACAO
+      - APROVADA
+      - REJEITADA
+      - EM_EXECUCAO
+      - FINALIZADA
+      - CANCELADA
+      - ENTREGUE
+    ItemStatus:
+      type: string
+      enum:
+      - PENDENTE
+      - AGUARDANDO_PECAS_E_INSUMOS
+      - EM_EXECUCAO
+      - CANCELADO
+      - FINALIZADO
+    SagaState:
+      type: string
+      enum:
+      - IN_DIAGNOSIS
+      - WAITING_APPROVAL
+      - WAITING_REVISION
+      - READY_FOR_EXECUTION
+      - START_PENDING
+      - IN_EXECUTION
+      - WAITING_PAYMENT
+      - READY_FOR_DELIVERY
+      - COMPLETED
+      - COMPENSATING
+      - COMPENSATED
+      - MANUAL_INTERVENTION
+    ExecutionState:
+      type: string
+      enum:
+      - PENDING
+      - WAITING_FOR_PARTS_AND_SUPPLIES
+      - START_PENDING
+      - IN_PROGRESS
+      - COMPLETED
+      - CANCELLED
+    Item:
+      type: object
+      properties:
+        id: &id001
+          type: string
+          format: uuid
+        idOrdemServico: *id001
+        servicoAutomotivo:
+          type: object
+          additionalProperties: true
+        valor: &id003
+          type: number
+          nullable: true
+        status:
+          $ref: '#/components/schemas/ItemStatus'
+        opcional:
+          type: boolean
+        insumos:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+          minItems: 0
+        dataHoraInicio: &id002
+          type: string
+          nullable: true
+          description: Data/hora local legada; sem mudar para UTC nesta revisão.
+        dataHoraFim: *id002
+        created_at: *id002
+        updated_at: *id002
+        executionState:
+          $ref: '#/components/schemas/ExecutionState'
+        startOperationId: *id001
+      required:
+      - id
+      - idOrdemServico
+      - status
+      additionalProperties: true
+    Order:
+      type: object
+      properties:
+        id: *id001
+        descricaoInicial:
+          type: string
+          nullable: true
+        descricaoDiagnostico:
+          type: string
+          nullable: true
+        descricaoDiagnosticoFinal:
+          type: string
+          nullable: true
+        observacao:
+          type: string
+          nullable: true
+        cliente:
+          type: object
+          additionalProperties: true
+        veiculo:
+          type: object
+          additionalProperties: true
+        itensServico:
+          type: array
+          items:
+            $ref: '#/components/schemas/Item'
+          minItems: 0
+        orcamentos:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+          minItems: 0
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        dataHoraEntrada: *id002
+        dataHoraPrevista: *id002
+        dataHoraEntrega: *id002
+        created_at: *id002
+        updated_at: *id002
+        sagaState:
+          $ref: '#/components/schemas/SagaState'
+      required:
+      - id
+      - status
+      additionalProperties: true
+    TrackingItem:
+      type: object
+      properties:
+        id: *id001
+        nomeServico:
+          type: string
+        tipoServico:
+          type: string
+        status:
+          $ref: '#/components/schemas/ItemStatus'
+        opcional:
+          type: boolean
+        dataHoraInicio: *id002
+        dataHoraFim: *id002
+        executionState:
+          $ref: '#/components/schemas/ExecutionState'
+        startOperationId: *id001
+      required:
+      - id
+      - status
+      additionalProperties: true
+    Tracking:
+      type: object
+      properties:
+        id: *id001
+        descricaoInicial:
+          type: string
+        descricaoDiagnosticoFinal:
+          type: string
+          nullable: true
+        veiculo:
+          type: object
+          additionalProperties: true
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        dataHoraEntrada: *id002
+        dataHoraPrevista: *id002
+        dataHoraEntrega: *id002
+        orcamento:
+          type: object
+          nullable: true
+          properties:
+            valorProposto: *id003
+            valorAprovado: *id003
+            status:
+              type: string
+            enviadoEm: *id002
+            aprovadoEm: *id002
+          additionalProperties: true
+        itensServico:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrackingItem'
+          minItems: 0
+        sagaState:
+          $ref: '#/components/schemas/SagaState'
+        budgetVersion:
+          type: integer
+          minimum: 1
+      required:
+      - id
+      - status
+      - itensServico
+      - sagaState
+      additionalProperties: true
+    PendingItem:
+      allOf:
+      - $ref: '#/components/schemas/Item'
+      - properties:
+          status:
+            type: string
+            enum:
+            - PENDENTE
+            - AGUARDANDO_PECAS_E_INSUMOS
+          executionState:
+            type: string
+            enum:
+            - START_PENDING
+        required:
+        - executionState
+        - startOperationId
+    StartedItem:
+      allOf:
+      - $ref: '#/components/schemas/Item'
+      - properties:
+          status:
+            type: string
+            enum:
+            - EM_EXECUCAO
+          executionState:
+            type: string
+            enum:
+            - IN_PROGRESS
+        required:
+        - executionState
+    PendingOrder:
+      allOf:
+      - $ref: '#/components/schemas/Order'
+      - properties:
+          status:
+            type: string
+            enum:
+            - APROVADA
+          sagaState:
+            type: string
+            enum:
+            - READY_FOR_EXECUTION
+        required:
+        - sagaState
+    StartedOrder:
+      allOf:
+      - $ref: '#/components/schemas/Order'
+      - properties:
+          status:
+            type: string
+            enum:
+            - EM_EXECUCAO
+          sagaState:
+            type: string
+            enum:
+            - IN_EXECUTION
+        required:
+        - sagaState
+    DeliveredOrder:
+      allOf:
+      - $ref: '#/components/schemas/Order'
+      - properties:
+          status:
+            type: string
+            enum:
+            - ENTREGUE
+          sagaState:
+            type: string
+            enum:
+            - COMPLETED
+        required:
+        - sagaState
+    LegacyError:
+      type: object
+      properties:
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        message:
+          type: string
+        errors:
+          type: array
+          nullable: true
+          items:
+            type: string
+        code:
+          type: string
+          minLength: 1
+        correlationId:
+          type: string
+          minLength: 1
+          maxLength: 128
+        operationId:
+          type: string
+          format: uuid
+      required:
+      - status
+      - message
+      - errors
+      additionalProperties: true
+      description: Preserva ErrorResponse legado (status, message, errors); code/correlationId são aditivos. Erros
+        de negócio novos devem informar o código documentado.
+    TechnicalProblem:
+      type: object
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+      required:
+      - type
+      - title
+      - status
+      additionalProperties: true
+      description: Formato técnico já emitido pelo filtro de segurança/correlação da base 1A.

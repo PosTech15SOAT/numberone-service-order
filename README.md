@@ -10,7 +10,11 @@ Origem: `PosTech15SOAT/numberone-app-auto-service-api`, develop
 Status: fase 1 em revisão. [Progresso e evidências](doc/progress/fase-1.md).
 Não há deploy habilitado. Contratos dependem de revisão da equipe.
 
-Entregas: **1A** base executável e **1B** [contratos da Saga](doc/contracts/saga/v1/README.md).
+Entregas: **1A** base executável e **1B** [pacote ativo 2.0.0-review.1](doc/contracts/saga/v2/README.md).
+Revisão 1B: [entrega e evidências](doc/progress/revisao-fase-1b.md),
+[matriz de decisões](doc/contracts/saga/v2/decisions.md) e
+[ADR 0003](doc/adr/0003-revisao-1b-contratos-arquitetura-v2.md).
+O [pacote anterior v1](doc/contracts/saga/v1/README.md) e os relatórios abaixo são históricos.
 Veja [roteiro de demonstração](doc/progress/demonstracao-fase-1.md),
 [entrega aos membros](doc/progress/entrega-fase-1.md) e [ADRs](doc/adr/).
 

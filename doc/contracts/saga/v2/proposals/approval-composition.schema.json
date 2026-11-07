@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.numberone.invalid/saga/v2/proposals/approval-composition.schema.json",
+  "description": "PENDENTE Julio + Matheus. Perfil candidato, não habilitado no dispatch ativo.",
+  "allOf": [
+    {
+      "$ref": "https://contracts.numberone.invalid/saga/v2/events/OrcamentoAprovado.schema.json"
+    },
+    {
+      "properties": {
+        "payload": {
+          "type": "object",
+          "properties": {
+            "compositionVersion": {
+              "$ref": "https://contracts.numberone.invalid/saga/v2/common.schema.json#/$defs/revision"
+            }
+          },
+          "required": [
+            "compositionVersion"
+          ],
+          "additionalProperties": true
+        }
+      }
+    }
+  ]
+}

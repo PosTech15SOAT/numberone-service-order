@@ -1,0 +1,556 @@
+openapi: 3.0.3
+info:
+  title: Inventory — disponibilidade e CT-05/08/08B para OS
+  version: 2.0.0-review.1
+  description: Proposta revisável fase 1B. Sem implementação ou aceite externo; decisões em decisions.md.
+servers:
+- url: https://internal.example.invalid
+  description: Placeholder; Marcelo confirma identidade e rede.
+security:
+- ServiceIdentity: []
+paths:
+  /internal/inventory/consumptions:
+    post:
+      operationId: consumeMaterials
+      description: 'CT-05: Idempotency-Key = operationId. Todos os materiais ou nenhum, em uma transação; agregar
+        IDs repetidos antes de conferir saldo. Persistir chave, hash canônico, resultado e movimentos juntos. Mesmo
+        pedido repete resultado sem nova baixa; chave com conteúdo diferente conflita. Retry após timeout usa a
+        mesma chave; após recusa durável e reposição, nova ação cria nova chave. CLOSED/REVERSED jamais reconsomem.'
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Baixa confirmada uma vez.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Consumed'
+        '400':
+          description: INVALID_REQUEST; formato ou IDs divergentes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: UNAUTHENTICATED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: FORBIDDEN; serviço/posse/filial sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: 'INSUFFICIENT_STOCK: REJECTED durável, zero movimentos. ATTEMPT_CLOSED ou ATTEMPT_REVERSED
+            bloqueiam consumo tardio. IDEMPOTENCY_CONFLICT não altera o resultado anterior.'
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: '#/components/schemas/Rejected'
+                - $ref: '#/components/schemas/ConsumptionConflict'
+        '503':
+          description: DEPENDENCY_UNAVAILABLE; resultado desconhecido, repetir identidade original.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '504':
+          description: DEPENDENCY_TIMEOUT; não prova ausência de efeito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      x-contract-id: CT-05
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsumptionRequest'
+  /internal/inventory/operations/{operationId}:
+    get:
+      operationId: getInventoryOperation
+      description: 'CT-08: consulta somente. 404 UNKNOWN e 202 PENDING não comprovam ausência de baixa; timeout
+        mantém AWAITING_RESULT. Durante compensação, fechar tentativa por CT-08B, inclusive quando ausente, e aguardar
+        confirmação durável.'
+      parameters:
+      - name: operationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Resultado durável.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryOperation'
+        '202':
+          description: Operação em andamento; Retry-After proposto.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pending'
+        '400':
+          description: INVALID_REQUEST; formato ou IDs divergentes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: UNAUTHENTICATED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: FORBIDDEN; serviço/posse/filial sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: 'UNKNOWN: registro ausente pode ser requisição em trânsito.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Unknown'
+        '503':
+          description: DEPENDENCY_UNAVAILABLE; resultado desconhecido, repetir identidade original.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '504':
+          description: DEPENDENCY_TIMEOUT; não prova ausência de efeito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      x-contract-id: CT-08
+  /internal/inventory/consumptions/{operationId}/reversal:
+    post:
+      operationId: reverseOrCloseConsumption
+      description: 'CT-08B: Idempotency-Key = compensationId. Serializar com CT-05 pela operationId inclusive sem
+        linha existente. Ausente: gravar tombstone CLOSED durável. CONSUMED: REVERSED somente com evidência conferida.
+        REVERSED/CLOSED são terminais; repetir chave retorna resultado. Evidência é proposta pendente Anderson/Matheus;
+        unusedConfirmed=true declara não uso ou devolução física validada, não autoriza estoque fictício. REJECTED
+        já resolve C2; se houver corrida devolver recusa OPERATION_ALREADY_REJECTED e reconciliar CT-08.'
+      parameters:
+      - name: operationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Fechamento sem baixa ou reversão com movimentos inversos.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: '#/components/schemas/Closed'
+                - $ref: '#/components/schemas/Reversed'
+        '400':
+          description: INVALID_REQUEST; formato ou IDs divergentes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: UNAUTHENTICATED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: FORBIDDEN; serviço/posse/filial sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Não confirmar compensação por conflito; consultar e resolver evidência.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReversalConflict'
+        '503':
+          description: DEPENDENCY_UNAVAILABLE; resultado desconhecido, repetir identidade original.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '504':
+          description: DEPENDENCY_TIMEOUT; não prova ausência de efeito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      x-contract-id: CT-08B
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReversalRequest'
+  /internal/inventory/availability:
+    get:
+      operationId: getMaterialAvailability
+      description: Leitura proposta; rota ainda depende Anderson. Não reserva, não garante saldo no futuro e não
+        cria operationId de consumo. CT-04 de preços para Billing permanece fora deste recorte.
+      parameters:
+      - name: inventoryItemIds
+        in: query
+        required: true
+        schema:
+          type: array
+          items:
+            type: string
+            format: uuid
+          minItems: 1
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Saldo observado; consumo CT-05 decide atomicamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Availability'
+        '400':
+          description: INVALID_REQUEST; formato ou IDs divergentes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: UNAUTHENTICATED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: FORBIDDEN; serviço/posse/filial sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: DEPENDENCY_UNAVAILABLE; resultado desconhecido, repetir identidade original.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '504':
+          description: DEPENDENCY_TIMEOUT; não prova ausência de efeito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+components:
+  securitySchemes:
+    ServiceIdentity:
+      type: http
+      scheme: bearer
+      description: 'Proposta pendente Marcelo: credencial de serviço com audiência/permissões; nunca JWT de cliente.'
+  schemas:
+    Problem:
+      type: object
+      properties:
+        code: &id001
+          type: string
+          minLength: 1
+        message: *id001
+        correlationId: &id002
+          type: string
+          format: uuid
+        operationId: *id002
+        compensationId: *id002
+      required:
+      - code
+      - message
+      - correlationId
+      additionalProperties: true
+    Supply:
+      type: object
+      properties:
+        inventoryItemId: &id003
+          type: string
+          format: uuid
+        quantity:
+          type: integer
+          minimum: 1
+      required:
+      - inventoryItemId
+      - quantity
+      additionalProperties: true
+    ConsumptionRequest:
+      type: object
+      properties:
+        operationId: *id003
+        serviceOrderId: *id003
+        serviceOrderItemId: *id003
+        responsibleUserId: *id003
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Supply'
+          minItems: 1
+      required:
+      - operationId
+      - serviceOrderId
+      - serviceOrderItemId
+      - responsibleUserId
+      - items
+      additionalProperties: true
+    Consumed:
+      type: object
+      properties:
+        operationId: *id003
+        result:
+          type: string
+          enum:
+          - CONSUMED
+        movements:
+          type: array
+          items: *id003
+          minItems: 1
+      required:
+      - operationId
+      - result
+      - movements
+      additionalProperties: true
+    Rejected:
+      type: object
+      properties:
+        operationId: *id003
+        result:
+          type: string
+          enum:
+          - REJECTED
+        code:
+          type: string
+          enum:
+          - INSUFFICIENT_STOCK
+        movements:
+          type: array
+          items: *id003
+          maxItems: 0
+      required:
+      - operationId
+      - result
+      - code
+      - movements
+      additionalProperties: true
+    Closed:
+      type: object
+      properties:
+        operationId: *id003
+        compensationId: *id003
+        result:
+          type: string
+          enum:
+          - CLOSED
+        movements:
+          type: array
+          items: *id003
+          maxItems: 0
+      required:
+      - operationId
+      - compensationId
+      - result
+      - movements
+      additionalProperties: true
+    Reversed:
+      type: object
+      properties:
+        operationId: *id003
+        compensationId: *id003
+        result:
+          type: string
+          enum:
+          - REVERSED
+        movements:
+          type: array
+          items: *id003
+          minItems: 1
+      required:
+      - operationId
+      - compensationId
+      - result
+      - movements
+      additionalProperties: true
+    Pending:
+      type: object
+      properties:
+        operationId: *id003
+        result:
+          type: string
+          enum:
+          - PENDING
+      required:
+      - operationId
+      - result
+      additionalProperties: true
+    Unknown:
+      type: object
+      properties:
+        operationId: *id003
+        result:
+          type: string
+          enum:
+          - UNKNOWN
+      required:
+      - operationId
+      - result
+      additionalProperties: true
+    InventoryOperation:
+      oneOf:
+      - $ref: '#/components/schemas/Consumed'
+      - $ref: '#/components/schemas/Rejected'
+      - $ref: '#/components/schemas/Closed'
+      - $ref: '#/components/schemas/Reversed'
+    ReversalRequest:
+      type: object
+      properties:
+        compensationId: *id003
+        reason:
+          type: string
+          enum:
+          - CANCELLED_BEFORE_USE
+          - VERIFIED_RETURN
+        unusedConfirmed:
+          type: boolean
+          enum:
+          - true
+        evidence:
+          type: object
+          properties:
+            verifiedBy: *id003
+            verifiedAt: &id004
+              type: string
+              format: date-time
+              pattern: Z$
+            reference:
+              type: string
+              minLength: 1
+          required:
+          - verifiedBy
+          - verifiedAt
+          - reference
+          additionalProperties: true
+      required:
+      - compensationId
+      - reason
+      - unusedConfirmed
+      - evidence
+      additionalProperties: true
+    Availability:
+      type: object
+      properties:
+        observedAt: *id004
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              inventoryItemId: *id003
+              availableQuantity:
+                type: integer
+                minimum: 0
+            required:
+            - inventoryItemId
+            - availableQuantity
+            additionalProperties: true
+          minItems: 1
+      required:
+      - observedAt
+      - items
+      additionalProperties: true
+    ConsumptionConflict:
+      type: object
+      properties:
+        code:
+          type: string
+          enum:
+          - IDEMPOTENCY_CONFLICT
+          - ATTEMPT_CLOSED
+          - ATTEMPT_REVERSED
+        message:
+          type: string
+          minLength: 1
+        correlationId: &id005
+          type: string
+          format: uuid
+        operationId: *id005
+        compensationId: *id005
+      required:
+      - code
+      - message
+      - correlationId
+      - operationId
+      additionalProperties: true
+    ReversalConflict:
+      type: object
+      properties:
+        code:
+          type: string
+          enum:
+          - IDEMPOTENCY_CONFLICT
+          - MATERIAL_USE_NOT_RESOLVED
+          - EVIDENCE_REQUIRED
+          - OPERATION_ALREADY_REJECTED
+        message:
+          type: string
+          minLength: 1
+        correlationId: &id006
+          type: string
+          format: uuid
+        operationId: *id006
+        compensationId: *id006
+      required:
+      - code
+      - message
+      - correlationId
+      additionalProperties: true

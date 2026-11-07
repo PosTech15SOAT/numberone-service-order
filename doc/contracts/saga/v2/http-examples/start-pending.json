@@ -1,0 +1,8 @@
+{
+  "id": "00000004-0000-4000-8000-000000000001",
+  "idOrdemServico": "00000001-0000-4000-8000-000000000001",
+  "status": "PENDENTE",
+  "executionState": "START_PENDING",
+  "startOperationId": "00000008-0000-4000-8000-000000000001",
+  "valor": 150.0
+}

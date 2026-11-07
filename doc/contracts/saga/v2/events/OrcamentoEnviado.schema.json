@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.numberone.invalid/saga/v2/events/OrcamentoEnviado.schema.json",
+  "allOf": [
+    {
+      "$ref": "https://contracts.numberone.invalid/saga/v2/envelope.schema.json"
+    },
+    {
+      "properties": {
+        "eventType": {
+          "const": "OrcamentoEnviado"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "serviceOrderId": {
+              "$ref": "https://contracts.numberone.invalid/saga/v2/common.schema.json#/$defs/uuid"
+            },
+            "budgetId": {
+              "$ref": "https://contracts.numberone.invalid/saga/v2/common.schema.json#/$defs/uuid"
+            },
+            "budgetVersion": {
+              "$ref": "https://contracts.numberone.invalid/saga/v2/common.schema.json#/$defs/revision"
+            }
+          },
+          "required": [
+            "serviceOrderId",
+            "budgetId",
+            "budgetVersion"
+          ],
+          "additionalProperties": true
+        }
+      }
+    }
+  ]
+}
