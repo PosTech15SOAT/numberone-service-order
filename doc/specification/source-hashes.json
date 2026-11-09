@@ -14,5 +14,9 @@
   {
     "file": "fase-1-repositorio-contratos.md",
     "sha256": "dfeecb29259d56879c949484900e85522a1cc695ce53a6fe075d187bb1dd4f4a"
+  },
+  {
+    "file": "fase-2-dominio-persistencia.md",
+    "sha256": "9a81aee91dd82e0d528d29da3c43eaffb11f958373f4d2b24561eb022d3c3200"
   }
 ]

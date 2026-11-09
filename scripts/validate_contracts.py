@@ -1,6 +1,7 @@
 """Portable contract checks; no service, database, queue or remote schema access."""
 import json
 import re
+import sys
 import unittest
 from decimal import Decimal
 from pathlib import Path
@@ -10,6 +11,8 @@ from jsonschema import Draft202012Validator, FormatChecker
 from openapi_spec_validator import validate as validate_openapi
 from referencing import Registry, Resource
 from referencing.exceptions import NoSuchResource
+
+from contract_revision_checks import RevisionContractChecks, summary as revision_summary
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "doc/contracts/saga/v1"
@@ -168,7 +171,16 @@ class ContractChecks(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    suite = unittest.defaultTestLoader.loadTestsFromTestCase(ContractChecks)
+    # Offline also on hosts without Docker. Keep the CI --network none defense.
+    def block_network(event, args):
+        if event in {"socket.connect", "socket.getaddrinfo", "socket.sendto"}:
+            raise RuntimeError("Network is disabled during contract validation")
+
+    sys.addaudithook(block_network)
+    suite = unittest.TestSuite([
+        unittest.defaultTestLoader.loadTestsFromTestCase(ContractChecks),
+        unittest.defaultTestLoader.loadTestsFromTestCase(RevisionContractChecks),
+    ])
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     summary = {
         "scope": "schema-and-fixture-validation-only",
@@ -178,6 +190,9 @@ if __name__ == "__main__":
         "invalidFixtures": len(read(PACKAGE / "invalid-examples/expectations.json")["cases"]),
         "checks": result.testsRun, "failures": len(result.failures), "errors": len(result.errors),
         "successful": result.wasSuccessful(), "remoteSchemaRetrieval": "denied",
+        "networkAccess": "denied-by-python-audit-hook",
+        "legacyPackage": "v1 (regression only; original counts above)",
+        "activePackage": revision_summary(),
     }
     output = ROOT / "target/contract-validation.json"
     output.parent.mkdir(parents=True, exist_ok=True)

@@ -1,0 +1,13 @@
+{
+  "eventId": "66000000-0000-4000-8000-000000000001",
+  "eventType": "OrcamentoEnviado",
+  "schemaVersion": 1,
+  "occurredAt": "2026-11-04T13:00:00Z",
+  "correlationId": "77000000-0000-4000-8000-000000000001",
+  "payload": {
+    "serviceOrderId": "00000001-0000-4000-8000-000000000001",
+    "budgetId": "00000002-0000-4000-8000-000000000001",
+    "budgetVersion": 1,
+    "compositionVersion": 3
+  }
+}

@@ -18,6 +18,7 @@ public class MaterialAllocationEntity {
     @Column(nullable = false, length = 256) private String description;
     @Column(nullable = false, precision = 19, scale = 2) private BigDecimal referenceUnitPrice;
     @Column(nullable = false) private int plannedQuantity;
+    // Kept for V1 audit and reconciliation.
     @Column(nullable = false) private int reservedQuantity;
     @Column(nullable = false) private int consumedQuantity;
     private UUID reservationId;

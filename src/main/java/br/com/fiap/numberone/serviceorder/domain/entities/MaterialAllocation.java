@@ -20,9 +20,28 @@ public class MaterialAllocation {
     private UUID consumptionOperationId;
     @Builder.Default private List<UUID> movementIds = List.of();
 
+    public void confirmConsumption(UUID operation, List<UUID> movements) {
+        if (!validReference(operation) || movements == null || movements.isEmpty()
+                || movements.stream().anyMatch(m -> !validReference(m))) {
+            throw new br.com.fiap.numberone.serviceorder.domain.exceptions.OrderRuleException("INVALID_CONSUMPTION_RESULT");
+        }
+        consumptionOperationId = operation;
+        movementIds = List.copyOf(movements);
+        consumedQuantity = plannedQuantity;
+    }
+
     public boolean hasConfirmedConsumption() {
         return plannedQuantity > 0 && consumedQuantity == plannedQuantity
-                && reservedQuantity == plannedQuantity && reservationId != null
-                && consumptionOperationId != null && !movementIds.isEmpty();
+                && validReference(consumptionOperationId) && movementIds != null && !movementIds.isEmpty()
+                && movementIds.stream().allMatch(MaterialAllocation::validReference);
+    }
+
+    private static boolean validReference(UUID reference) {
+        return reference != null && (reference.getMostSignificantBits() != 0 || reference.getLeastSignificantBits() != 0);
+    }
+
+    public boolean hasMaterialEffect() {
+        return reservedQuantity != 0 || consumedQuantity != 0 || reservationId != null
+                || consumptionOperationId != null || (movementIds != null && !movementIds.isEmpty());
     }
 }

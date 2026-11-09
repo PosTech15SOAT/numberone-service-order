@@ -10,6 +10,7 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -26,12 +27,38 @@ class ServiceOrderPersistenceIT extends HttpPostgresSupport {
     @Autowired PlatformTransactionManager transactions;
 
     @Test void flywayCreatesOnlyOwnedTablesAndNoExternalForeignKeys() {
-        var tables = jdbc.queryForList("SELECT tablename FROM pg_tables WHERE schemaname='public'", String.class);
+        var tables = jdbc.queryForList("SELECT tablename FROM pg_tables WHERE schemaname=current_schema()", String.class);
         assertThat(tables).containsExactlyInAnyOrder("flyway_schema_history", "cliente", "veiculo", "servico_automotivo",
-                "ordem_servico", "item_ordem_servico", "material_previsto", "material_movement_reference");
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM flyway_schema_history WHERE success=true AND version='1'", Integer.class)).isEqualTo(1);
-        var foreignTables = jdbc.queryForList("SELECT DISTINCT ccu.table_name FROM information_schema.table_constraints tc JOIN information_schema.constraint_column_usage ccu ON tc.constraint_name=ccu.constraint_name AND tc.constraint_schema=ccu.constraint_schema WHERE tc.constraint_type='FOREIGN KEY' AND tc.table_schema='public'", String.class);
-        assertThat(foreignTables).containsOnly("cliente", "veiculo", "servico_automotivo", "ordem_servico", "item_ordem_servico", "material_previsto");
+                "ordem_servico", "item_ordem_servico", "material_previsto", "material_movement_reference", "service_order_composition", "service_order_saga", "inbox_event", "saga_operation", "service_order_payment");
+        assertThat(jdbc.queryForList("SELECT version FROM flyway_schema_history WHERE success=true AND version IS NOT NULL ORDER BY installed_rank",
+                String.class)).containsExactly("1", "2", "3", "4", "5");
+        var foreignTables = jdbc.queryForList("SELECT DISTINCT ccu.table_name FROM information_schema.table_constraints tc JOIN information_schema.constraint_column_usage ccu ON tc.constraint_name=ccu.constraint_name AND tc.constraint_schema=ccu.constraint_schema WHERE tc.constraint_type='FOREIGN KEY' AND tc.table_schema=current_schema()", String.class);
+        assertThat(foreignTables).containsOnly("cliente", "veiculo", "servico_automotivo", "ordem_servico",
+                "item_ordem_servico", "material_previsto", "service_order_composition", "saga_operation");
+    }
+
+    @Test void directConsumptionRequiresValidQuantityOperationAndMovement() throws Exception {
+        var f = diagnosisFixture();
+        var m = addMaterial(f.item());
+        var operation = UUID.randomUUID();
+        var movement = UUID.randomUUID();
+        assertThatThrownBy(() -> recordConsumption(m, 2, operation, movement)).isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> recordConsumption(m, -1, operation, movement)).isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> recordConsumption(m, 1, null, movement)).isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> recordConsumption(m, 1, new UUID(0, 0), movement)).isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> recordConsumption(m, 1, operation, null)).isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> recordConsumption(m, 1, operation, new UUID(0, 0))).isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> recordConsumption(m, 0, null, movement)).isInstanceOf(DataIntegrityViolationException.class);
+
+        recordConsumption(m, 1, operation, movement);
+        assertThatThrownBy(() -> jdbc.update("DELETE FROM material_movement_reference WHERE allocation_id=?", m))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        var material = orders.find(f.order(), BRANCH, false).orElseThrow().item(f.item()).getMaterials().getFirst();
+        assertThat(material.getReservedQuantity()).isZero();
+        assertThat(material.getReservationId()).isNull();
+        assertThat(material.hasConfirmedConsumption()).isTrue();
+        assertThat(material.getConsumptionOperationId()).isEqualTo(operation);
+        assertThat(material.getMovementIds()).containsExactly(movement);
     }
 
     @Test void materialCountersAndVehicleOwnershipAreDatabaseConstraints() throws Exception {
@@ -44,8 +71,9 @@ class ServiceOrderPersistenceIT extends HttpPostgresSupport {
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThatThrownBy(() -> jdbc.update("UPDATE item_ordem_servico SET status='COMPLETED' WHERE id=?", f.item()))
                 .isInstanceOf(DataIntegrityViolationException.class);
-        assertThatThrownBy(() -> jdbc.update("UPDATE ordem_servico SET payment_confirmed_at=now() WHERE id=?", f.order()))
-                .isInstanceOf(DataIntegrityViolationException.class);
+        // Financial projection can arrive before commercial context; it never authorizes execution.
+        jdbc.update("UPDATE ordem_servico SET payment_confirmed_at=now() WHERE id=?", f.order());
+        expect(409, call("PATCH", "/api/admin/ordens-servico/" + f.order() + "/iniciar", null));
     }
 
     @Test void staleAggregateCannotOverwriteACommittedDiagnosis() throws Exception {
@@ -81,7 +109,22 @@ class ServiceOrderPersistenceIT extends HttpPostgresSupport {
     }
 
     @Test void approvedSnapshotAndCompositionAreImmutableInApiAndDatabase() throws Exception {
-        var f = diagnosisFixture(); var m = addMaterial(f.item()); approveFixture(f);
+        var f = diagnosisFixture();
+        var obsolete = orders.find(f.order(), BRANCH, false).orElseThrow().compositionSnapshot();
+        var m = addMaterial(f.item());
+        var current = orders.find(f.order(), BRANCH, false).orElseThrow();
+        var budget = UUID.randomUUID();
+        current.registerBudget(budget, 2, current.getCompositionVersion());
+        assertThatThrownBy(() -> current.approveBudget(budget, 1, obsolete, new BigDecimal("345.67"), "BRL"))
+                .hasMessage("STALE_BUDGET_REVISION");
+        assertThatThrownBy(() -> current.approveBudget(budget, 2, obsolete, new BigDecimal("345.67"), "BRL"))
+                .hasMessage("BUDGET_COMPOSITION_CONFLICT");
+        current.approveBudget(budget, 2, current.compositionSnapshot(), new BigDecimal("345.67"), "BRL");
+        orders.save(current);
+        assertThat(jdbc.queryForObject("""
+                SELECT jsonb_array_length(items->0->'supplies') FROM service_order_composition
+                WHERE service_order_id=? AND composition_version=?
+                """, Integer.class, f.order(), obsolete.version())).isZero();
         var unapproved = createOrder(f.customer(), f.vehicle()); diagnose(unapproved);
         var unapprovedItem = addItem(unapproved, f.service());
         assertThatThrownBy(() -> jdbc.update("UPDATE item_ordem_servico SET id_ordem_servico=? WHERE id=?", unapproved, f.item()))
@@ -96,37 +139,74 @@ class ServiceOrderPersistenceIT extends HttpPostgresSupport {
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThatThrownBy(() -> jdbc.update("DELETE FROM item_ordem_servico WHERE id=?", f.item()))
                 .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbc.update("UPDATE item_ordem_servico SET status='CANCELLED' WHERE id=?", f.item()))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbc.update("UPDATE service_order_composition SET items='[]' WHERE service_order_id=?", f.order()))
+                .isInstanceOf(DataIntegrityViolationException.class);
         expect(409, call("PATCH", "/api/admin/ordens-servico/" + f.order() + "/diagnostico",
                 Map.of("descricaoDiagnosticoFinal", "Bloqueado", "dataHoraPrevista", "2026-11-01T15:00:00")));
         var tracking = expect(200, call("GET", "/api/public/ordens-servico/" + f.order() + "/acompanhamento", null));
         assertThat(tracking.get("estimativa").get("valorEstimado").asString()).isEqualTo("350.00");
         assertThat(tracking.get("orcamentoAprovado").get("totalAmount").asString()).isEqualTo("345.67");
+        assertThat(tracking.get("orcamentoAprovado").get("approvedItems").get(0).get("supplies").get(0)
+                .get("inventoryItemId").asString()).isEqualTo(MATERIAL);
+        assertThat(tracking.get("budgetVersion").asInt()).isEqualTo(2);
+        assertThat(tracking.get("compositionVersion").asInt()).isEqualTo(current.getCompositionVersion());
     }
 
-    @Test void confirmedFixtureCanCompleteLocallyButPendingConsumptionCannot() throws Exception {
+    @Test void approvedRepairWithDirectConsumptionCompletesOverHttpWithoutPayment() throws Exception {
         var f = diagnosisFixture(); var m = addMaterial(f.item()); approveFixture(f);
-        jdbc.update("UPDATE ordem_servico SET status='READY_FOR_EXECUTION',payment_confirmed_at=now() WHERE id=?", f.order());
-        var blocked = expect(409, call("PATCH", "/api/admin/itens-ordem-servico/" + f.item() + "/iniciar", null));
-        assertThat(blocked.get("message").asString()).isEqualTo("EXECUTION_INTEGRATION_NOT_AVAILABLE");
-        jdbc.update("UPDATE ordem_servico SET status='IN_PROGRESS' WHERE id=?", f.order());
-        jdbc.update("UPDATE item_ordem_servico SET status='IN_PROGRESS',start_date_time=now()-interval '1 minute' WHERE id=?", f.item());
-        expect(409, call("PATCH", "/api/admin/itens-ordem-servico/" + f.item() + "/concluir", null));
-        jdbc.update("UPDATE material_previsto SET reserved_quantity=1,consumed_quantity=1,reservation_id=?,consumption_operation_id=? WHERE id=?", UUID.randomUUID(), UUID.randomUUID(), m);
-        jdbc.update("INSERT INTO material_movement_reference(allocation_id,movement_id) VALUES (?,?)", m, UUID.randomUUID());
-        expect(200, call("PATCH", "/api/admin/itens-ordem-servico/" + f.item() + "/concluir", null));
-        expect(200, call("PATCH", "/api/admin/ordens-servico/" + f.order() + "/concluir", null));
-        var delivered = expect(200, call("PATCH", "/api/admin/ordens-servico/" + f.order() + "/entregar", null));
-        assertThat(delivered.get("status").asString()).isEqualTo("ENTREGUE");
-        var durations = expect(200, call("GET", "/api/admin/ordens-servico/" + f.order() + "/tempo-medio-execucao-servicos", null));
+        var orderRoute = "/api/admin/ordens-servico/" + f.order();
+        var itemRoute = "/api/admin/itens-ordem-servico/" + f.item();
+        expect(200, call("PATCH", orderRoute + "/iniciar", null));
+        expect(409, call("PATCH", itemRoute + "/concluir", null));
+        assertThatThrownBy(() -> confirmStartFixture(f)).hasMessage("MATERIAL_CONSUMPTION_PENDING");
+        recordConsumption(m, 1, UUID.randomUUID(), UUID.randomUUID());
+        confirmStartFixture(f);
+        expect(409, call("PATCH", orderRoute + "/concluir", null));
+        var item = expect(200, call("PATCH", itemRoute + "/concluir", null));
+        assertThat(item.get("insumos").get(0).get("consumoConfirmado").asBoolean()).isTrue();
+        assertThat(item.get("insumos").get(0).get("reservationId").isNull()).isTrue();
+        var complete = expect(200, call("PATCH", orderRoute + "/concluir", null));
+        assertThat(complete.get("status").asString()).isEqualTo("FINALIZADA");
+        assertThat(complete.get("executionState").asString()).isEqualTo("COMPLETED");
+        assertThat(complete.get("pagamentoConfirmado").asBoolean()).isFalse();
+        var delivery = expect(503, call("PATCH", orderRoute + "/entregar", null));
+        assertThat(delivery.get("message").asString()).isEqualTo("DEPENDENCY_UNAVAILABLE");
+        jdbc.update("UPDATE ordem_servico SET payment_confirmed_at=now() WHERE id=?", f.order());
+        expect(503, call("PATCH", orderRoute + "/entregar", null));
+        assertThat(expect(200, call("GET", orderRoute, null)).get("dataHoraEntrega").isNull()).isTrue();
+        var durations = expect(200, call("GET", orderRoute + "/tempo-medio-execucao-servicos", null));
         assertThat(durations.get("servicosConcluidos").asInt()).isEqualTo(1);
         assertThat(durations.get("tempoMedioExecucaoMinutos").asLong()).isGreaterThanOrEqualTo(1);
     }
 
     private void approveFixture(Fixture f) {
-        // Test preparation, NOT a Billing event or live integration. No production confirmation endpoint exists.
-        String composition = json.writeValueAsString(List.of(Map.of("serviceOrderItemId", f.item(),
-                "automotiveServiceId", f.service(), "description", "Fixture", "quantity", 1,
-                "laborUnitPrice", "145.67", "materials", List.of(Map.of("materialId", MATERIAL, "quantity", 1, "approvedUnitPrice", "200.00")))));
-        jdbc.update("UPDATE ordem_servico SET status='APPROVED',approved_budget_id=?,approved_revision=budget_revision,approved_currency='BRL',approved_amount=345.67,approved_items_json=CAST(? AS jsonb) WHERE id=?", UUID.randomUUID(), composition, f.order());
+        var order = orders.find(f.order(), BRANCH, false).orElseThrow();
+        var budget = UUID.randomUUID();
+        order.registerBudget(budget, 1, order.getCompositionVersion());
+        order.approveBudget(budget, 1, order.compositionSnapshot(), new BigDecimal("345.67"), "BRL");
+        orders.save(order);
+        jdbc.update("UPDATE service_order_saga SET state='READY_FOR_EXECUTION' WHERE service_order_id=?", f.order());
+    }
+
+    private void confirmStartFixture(Fixture f) {
+        new TransactionTemplate(transactions).executeWithoutResult(status -> {
+            var order = orders.find(f.order(), BRANCH, true).orElseThrow();
+            order.confirmItemStart(f.item(), LocalDateTime.now(java.time.ZoneOffset.UTC).minusMinutes(2));
+            orders.save(order);
+            jdbc.update("UPDATE service_order_saga SET state='IN_EXECUTION' WHERE service_order_id=?", f.order());
+        });
+    }
+
+    private void recordConsumption(UUID allocation, int quantity, UUID operation, UUID movement) {
+        new TransactionTemplate(transactions).executeWithoutResult(status -> {
+            jdbc.update("UPDATE material_previsto SET consumed_quantity=?, consumption_operation_id=? WHERE id=?",
+                    quantity, operation, allocation);
+            if (movement != null) {
+                jdbc.update("INSERT INTO material_movement_reference VALUES (?,?)", allocation, movement);
+            }
+            jdbc.execute("SET CONSTRAINTS ALL IMMEDIATE");
+        });
     }
 }

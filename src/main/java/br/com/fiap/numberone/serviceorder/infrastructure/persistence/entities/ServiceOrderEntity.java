@@ -23,6 +23,9 @@ public class ServiceOrderEntity {
     private br.com.fiap.numberone.vehicle.infrastructure.persistence.entities.VehicleEntity vehicle;
     @Column(nullable = false) private UUID attemptId;
     @Column(nullable = false) private int budgetRevision;
+    @Column(nullable = false) private int compositionVersion;
+    private UUID currentBudgetId;
+    private Integer budgetCompositionVersion;
     @Column(nullable = false, length = 2000) private String initialDescription;
     @Column(nullable = false, length = 2000) private String diagnosisDescription;
     @Column(length = 2000) private String finalDiagnosisDescription;
@@ -39,6 +42,7 @@ public class ServiceOrderEntity {
     @Column(precision = 19, scale = 2) private BigDecimal approvedAmount;
     @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
     @Column(columnDefinition = "jsonb") private String approvedItemsJson;
+    private Integer approvedCompositionVersion;
     private LocalDateTime paymentConfirmedAt;
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ServiceOrderItemEntity> items = new ArrayList<>();

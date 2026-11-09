@@ -19,8 +19,11 @@ import static br.com.fiap.numberone.serviceorder.domain.enums.OrderItemStatus.*;
 public class ServiceOrderController {
     private final ServiceOrderService service;
     private final ServiceOrderApiMapper mapper;
-    public ServiceOrderController(ServiceOrderService service, ServiceOrderApiMapper mapper) {
+    private final br.com.fiap.numberone.serviceorder.application.services.SagaWorkflow saga;
+    public ServiceOrderController(ServiceOrderService service, ServiceOrderApiMapper mapper,
+            br.com.fiap.numberone.serviceorder.application.services.SagaWorkflow saga) {
         this.service = service; this.mapper = mapper;
+        this.saga = saga;
     }
     @PostMapping
     public ResponseEntity<OrderResponses.Order> create(@Valid @RequestBody OrderRequests.Create r) {
@@ -37,7 +40,7 @@ public class ServiceOrderController {
     public OrderResponses.Estimate estimate(@PathVariable UUID id) {
         return new OrderResponses.Estimate("ESTIMATIVA", "BRL", service.get(id).estimate());
     }
-    @PatchMapping("/{id}/iniciar") public void start(@PathVariable UUID id) { service.requestStart(id); }
+    @PatchMapping("/{id}/iniciar") public OrderResponses.Order start(@PathVariable UUID id) { return mapper.toResponse(saga.readiness(id)); }
     @GetMapping("/{id}/calcular-tempo-estimado") public OrderResponses.EstimatedTime estimatedTime(@PathVariable UUID id) {
         long minutes = service.get(id).estimatedMinutes();
         return new OrderResponses.EstimatedTime(id, minutes, LocalDateTime.now(ZoneOffset.UTC).plusMinutes(minutes));
@@ -46,9 +49,10 @@ public class ServiceOrderController {
         var o = service.get(id);
         return new OrderResponses.ExecutionTime(id, o.countItems(COMPLETED), o.countItems(PENDING),
                 o.countItems(IN_PROGRESS), o.countItems(CANCELLED), o.countItems(WAITING_FOR_PARTS_AND_SUPPLIES),
-                o.averageExecutionMinutes(), o.countItems(START_REQUESTED));
+                o.averageExecutionMinutes(), o.getItems().stream().filter(i -> i.isStartPending()).count());
     }
-    @PatchMapping("/{id}/cancelar") public OrderResponses.Order cancel(@PathVariable UUID id) { return mapper.toResponse(service.cancel(id)); }
-    @PatchMapping("/{id}/concluir") public OrderResponses.Order complete(@PathVariable UUID id) { return mapper.toResponse(service.complete(id)); }
-    @PatchMapping("/{id}/entregar") public OrderResponses.Order deliver(@PathVariable UUID id) { return mapper.toResponse(service.deliver(id)); }
+    @PatchMapping("/{id}/concluir") public OrderResponses.Order complete(@PathVariable UUID id) { saga.complete(id); return mapper.toResponse(service.get(id)); }
+    @PatchMapping("/{id}/entregar") public OrderResponses.Order deliver(@PathVariable UUID id) {
+        saga.deliver(id, br.com.fiap.numberone.shared.infrastructure.correlation.SagaCorrelation.current()); return mapper.toResponse(service.get(id));
+    }
 }

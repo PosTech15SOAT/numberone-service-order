@@ -28,7 +28,9 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({OrderNotFoundException.class, NoResourceFoundException.class})
     ResponseEntity<ErrorResponse> missing(Exception ex) { return error(404, "RESOURCE_NOT_FOUND"); }
     @ExceptionHandler(OrderRuleException.class)
-    ResponseEntity<ErrorResponse> rule(OrderRuleException ex) { return error(409, ex.getMessage()); }
+    ResponseEntity<ErrorResponse> rule(OrderRuleException ex) {
+        return ResponseEntity.status(409).body(new ErrorResponse(409, ex.getMessage(), List.of(), ex.getMessage()));
+    }
     @ExceptionHandler({DataIntegrityViolationException.class, OptimisticLockingFailureException.class,
             PessimisticLockingFailureException.class})
     ResponseEntity<ErrorResponse> conflict(Exception ex) { return error(409, "PERSISTENCE_CONFLICT"); }
@@ -36,6 +38,10 @@ public class GlobalExceptionHandler {
     ResponseEntity<ErrorResponse> forbidden(Exception ex) { return error(403, "ACCESS_DENIED"); }
     @ExceptionHandler(MaterialReferenceUnavailableException.class)
     ResponseEntity<ErrorResponse> unavailable(Exception ex) { return error(503, "MATERIAL_REFERENCE_UNAVAILABLE"); }
+    @ExceptionHandler(br.com.fiap.numberone.serviceorder.application.gateways.SagaDependencyException.class)
+    ResponseEntity<ErrorResponse> sagaUnavailable(Exception ex) {
+        return ResponseEntity.status(503).body(new ErrorResponse(503, "DEPENDENCY_UNAVAILABLE", List.of(), "DEPENDENCY_UNAVAILABLE"));
+    }
     @ExceptionHandler(Exception.class)
     ResponseEntity<ErrorResponse> unexpected(Exception ex) { return error(500, "INTERNAL_ERROR"); }
 }

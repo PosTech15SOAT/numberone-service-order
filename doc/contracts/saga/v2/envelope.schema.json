@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.numberone.invalid/saga/v2/envelope.schema.json",
+  "type": "object",
+  "properties": {
+    "eventId": {
+      "$ref": "https://contracts.numberone.invalid/saga/v2/common.schema.json#/$defs/uuid"
+    },
+    "eventType": {
+      "type": "string",
+      "minLength": 1
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "occurredAt": {
+      "$ref": "https://contracts.numberone.invalid/saga/v2/common.schema.json#/$defs/utc"
+    },
+    "correlationId": {
+      "$ref": "https://contracts.numberone.invalid/saga/v2/common.schema.json#/$defs/uuid"
+    },
+    "payload": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "eventId",
+    "eventType",
+    "schemaVersion",
+    "occurredAt",
+    "correlationId",
+    "payload"
+  ],
+  "additionalProperties": true
+}

@@ -19,9 +19,9 @@ class ServiceOrderRulesTest {
     private ServiceOrder.ServiceOrderBuilder order(ServiceOrderStatus status) {
         return ServiceOrder.builder().id(UUID.randomUUID()).status(status).entryDateTime(NOW.minusHours(1));
     }
-    private ServiceOrder.ServiceOrderBuilder paid(ServiceOrderStatus status) {
+    private ServiceOrder.ServiceOrderBuilder legacyApproved(ServiceOrderStatus status) {
         return order(status).approvedBudgetId(UUID.randomUUID()).approvedRevision(1).approvedCurrency("BRL")
-                .approvedAmount(new BigDecimal("350.00")).approvedItemsJson("[]").paymentConfirmedAt(NOW);
+                .approvedAmount(new BigDecimal("350.00")).approvedItemsJson("[]");
     }
     private ServiceOrderItem.ServiceOrderItemBuilder item(OrderItemStatus status) {
         return ServiceOrderItem.builder().id(UUID.randomUUID()).status(status).laborUnitPrice(new BigDecimal("150.00"));
@@ -31,7 +31,7 @@ class ServiceOrderRulesTest {
                 .referenceUnitPrice(new BigDecimal("200.00")).plannedQuantity(1);
     }
     private MaterialAllocation consumed() {
-        return material().reservedQuantity(1).consumedQuantity(1).reservationId(UUID.randomUUID())
+        return material().consumedQuantity(1)
                 .consumptionOperationId(UUID.randomUUID()).movementIds(List.of(UUID.randomUUID())).build();
     }
 
@@ -51,24 +51,52 @@ class ServiceOrderRulesTest {
     }
 
     @Test void approvedSnapshotFreezesEvenAnInconsistentDiagnosisState() {
-        var o = paid(ServiceOrderStatus.IN_DIAGNOSIS).build();
+        var o = legacyApproved(ServiceOrderStatus.IN_DIAGNOSIS).build();
         assertThatThrownBy(o::requireEditableDiagnosis).hasMessage("APPROVED_SNAPSHOT_IMMUTABLE");
         assertThatThrownBy(() -> o.diagnose("Fixture", NOW, null)).hasMessage("APPROVED_SNAPSHOT_IMMUTABLE");
         assertThatThrownBy(o::cancel).hasMessage("APPROVED_SNAPSHOT_IMMUTABLE");
     }
 
     @ParameterizedTest @EnumSource(ServiceOrderStatus.class)
-    void noOrderStartsWithoutPaymentConfirmation(ServiceOrderStatus status) {
-        assertThatThrownBy(() -> order(status).build().requestStart()).hasMessage("PAYMENT_NOT_CONFIRMED");
+    void noOrderStartsWithoutCurrentBudgetApproval(ServiceOrderStatus status) {
+        assertThatThrownBy(() -> order(status).build().requestStart()).hasMessage("BUDGET_NOT_APPROVED");
     }
 
-    @Test void startIsBlockedEvenWhenFixtureContainsPayment() {
-        assertThatThrownBy(() -> paid(ServiceOrderStatus.READY_FOR_EXECUTION).build().requestStart())
-                .hasMessage("EXECUTION_INTEGRATION_NOT_AVAILABLE");
-        assertThatThrownBy(() -> paid(ServiceOrderStatus.IN_DIAGNOSIS).build().requestStart())
-                .hasMessage("ORDER_NOT_READY_FOR_EXECUTION");
-        assertThatThrownBy(() -> paid(ServiceOrderStatus.READY_FOR_EXECUTION).approvedRevision(2).build().requestStart())
-                .hasMessage("PAYMENT_NOT_CONFIRMED");
+    @Test void startRequiresApprovalOfTheCurrentTechnicalComposition() {
+        var i = item(OrderItemStatus.PENDING).build();
+        var o = order(ServiceOrderStatus.IN_DIAGNOSIS).items(new ArrayList<>(List.of(i))).build();
+        var obsolete = o.compositionSnapshot();
+        var budget = UUID.randomUUID();
+        var amount = new BigDecimal("345.67");
+        o.putMaterial(i.getId(), material().build(), false);
+        assertThatThrownBy(() -> o.registerBudget(budget, 1, obsolete.version())).hasMessage("STALE_BUDGET_REVISION");
+        assertThatThrownBy(() -> o.approveBudget(budget, 2, o.compositionSnapshot(), amount, "BRL"))
+                .hasMessage("BUDGET_CONTEXT_UNAVAILABLE");
+        o.registerBudget(budget, 2, o.getCompositionVersion());
+        assertThatThrownBy(() -> o.approveBudget(budget, 1, obsolete, amount, "BRL")).hasMessage("STALE_BUDGET_REVISION");
+        assertThatThrownBy(() -> o.approveBudget(budget, 2, obsolete, amount, "BRL")).hasMessage("BUDGET_COMPOSITION_CONFLICT");
+        assertThatThrownBy(() -> o.approveBudget(UUID.randomUUID(), 2, o.compositionSnapshot(), amount, "BRL"))
+                .hasMessage("BUDGET_COMPOSITION_CONFLICT");
+        var otherOrderSnapshot = new CompositionSnapshot(UUID.randomUUID(), o.getCompositionVersion(),
+                o.compositionSnapshot().items());
+        assertThatThrownBy(() -> o.approveBudget(budget, 2, otherOrderSnapshot, amount, "BRL"))
+                .hasMessage("BUDGET_COMPOSITION_CONFLICT");
+        assertThatThrownBy(o::requestStart).hasMessage("BUDGET_NOT_APPROVED");
+        assertThat(o.getApprovedAmount()).isNull();
+
+        var current = o.compositionSnapshot();
+        o.approveBudget(budget, 2, current, amount, "BRL");
+        assertThat(o.getApprovedComposition()).isEqualTo(current);
+        assertThat(o.getApprovedAmount()).isEqualByComparingTo("345.67");
+        assertThat(o.estimate()).isEqualByComparingTo("350.00");
+        assertThatCode(o::requestStart).doesNotThrowAnyException();
+        assertThatThrownBy(() -> o.confirmItemStart(i.getId(), NOW)).hasMessage("MATERIAL_CONSUMPTION_PENDING");
+        assertThat(i.getStatus()).isEqualTo(OrderItemStatus.PENDING);
+        assertThatThrownBy(() -> o.removeItem(i.getId())).hasMessage("DIAGNOSIS_NOT_EDITABLE");
+        assertThatThrownBy(() -> o.registerBudget(UUID.randomUUID(), 3, current.version()))
+                .hasMessage("APPROVED_SNAPSHOT_IMMUTABLE");
+        assertThatThrownBy(legacyApproved(ServiceOrderStatus.APPROVED).build()::requestStart)
+                .hasMessage("BUDGET_NOT_APPROVED");
     }
 
     @ParameterizedTest @EnumSource(value = OrderItemStatus.class, names = "IN_PROGRESS", mode = EnumSource.Mode.EXCLUDE)
@@ -86,30 +114,48 @@ class ServiceOrderRulesTest {
         assertThat(i.getStatus()).isEqualTo(OrderItemStatus.COMPLETED);
     }
 
-    @Test void completionAndDeliveryRequireAllEligibleItemsFinished() {
-        var i = item(OrderItemStatus.IN_PROGRESS).startDateTime(NOW.minusMinutes(10)).build();
-        var o = paid(ServiceOrderStatus.IN_PROGRESS).items(new ArrayList<>(List.of(i))).build();
+    @Test void approvedRepairCanStartAndCompleteBeforePaymentButCannotBeDelivered() {
+        var i = item(OrderItemStatus.PENDING).materials(List.of(consumed())).build();
+        var o = order(ServiceOrderStatus.IN_DIAGNOSIS).items(List.of(i)).build();
+        var budget = UUID.randomUUID();
+        o.registerBudget(budget, 1, o.getCompositionVersion());
+        o.approveBudget(budget, 1, o.compositionSnapshot(), new BigDecimal("345.67"), "BRL");
+        o.confirmItemStart(i.getId(), NOW.minusMinutes(10));
         assertThatThrownBy(o::complete).hasMessage("ORDER_HAS_UNFINISHED_ITEMS");
-        assertThatThrownBy(() -> o.deliver(NOW)).hasMessage("ORDER_NOT_COMPLETED");
+        assertThatThrownBy(o::requestDelivery).hasMessage("ORDER_NOT_COMPLETED");
         o.completeItem(i.getId(), NOW);
-        o.complete(); o.deliver(NOW.plusMinutes(1));
-        assertThat(o.getStatus()).isEqualTo(ServiceOrderStatus.DELIVERED);
-        assertThat(o.getDeliveryDateTime()).isEqualTo(NOW.plusMinutes(1));
+        o.complete();
+        assertThat(o.getStatus()).isEqualTo(ServiceOrderStatus.COMPLETED);
+        assertThat(o.getPaymentConfirmedAt()).isNull();
+        assertThatCode(o::requestDelivery).doesNotThrowAnyException();
+        assertThat(o.getDeliveryDateTime()).isNull();
     }
 
     @Test void pendingStartAndCancelledUnreleasedMaterialPreventCompletion() {
-        var pending = item(OrderItemStatus.START_REQUESTED).build();
-        var o = paid(ServiceOrderStatus.IN_PROGRESS).items(List.of(pending)).build();
+        var pending = item(OrderItemStatus.PENDING).startPending(true).build();
+        var o = legacyApproved(ServiceOrderStatus.IN_PROGRESS).items(List.of(pending)).build();
         assertThatThrownBy(o::complete).hasMessage("ORDER_HAS_UNFINISHED_ITEMS");
         var completed = item(OrderItemStatus.COMPLETED).startDateTime(NOW.minusHours(1)).endDateTime(NOW).build();
         var cancelled = item(OrderItemStatus.CANCELLED).materials(List.of(consumed())).build();
-        var blocked = paid(ServiceOrderStatus.IN_PROGRESS).items(List.of(completed, cancelled)).build();
+        var blocked = legacyApproved(ServiceOrderStatus.IN_PROGRESS).items(List.of(completed, cancelled)).build();
         assertThatThrownBy(blocked::complete).hasMessage("MATERIAL_COMPENSATION_PENDING");
+    }
+
+    @Test void itemWithoutMaterialsCanStartWithCurrentApprovalAndNoPayment() {
+        var item = item(OrderItemStatus.PENDING).build();
+        var order = order(ServiceOrderStatus.IN_DIAGNOSIS).items(List.of(item)).build();
+        var budget = UUID.randomUUID();
+        order.registerBudget(budget, 1, order.getCompositionVersion());
+        order.approveBudget(budget, 1, order.compositionSnapshot(), new BigDecimal("145.67"), "BRL");
+        order.confirmItemStart(item.getId(), NOW);
+        assertThat(order.getStatus()).isEqualTo(ServiceOrderStatus.IN_PROGRESS);
+        assertThat(item.getStartDateTime()).isEqualTo(NOW);
+        assertThat(order.getPaymentConfirmedAt()).isNull();
     }
 
     @ParameterizedTest @EnumSource(value = ServiceOrderStatus.class, names = "COMPLETED", mode = EnumSource.Mode.EXCLUDE)
     void onlyCompletedOrdersCanBeDelivered(ServiceOrderStatus status) {
-        assertThatThrownBy(() -> order(status).build().deliver(NOW)).hasMessage("ORDER_NOT_COMPLETED");
+        assertThatThrownBy(order(status).build()::requestDelivery).hasMessage("ORDER_NOT_COMPLETED");
     }
 
     @Test void estimateIsLocalAndDoesNotSetApprovedAmount() {
@@ -126,7 +172,7 @@ class ServiceOrderRulesTest {
         o.cancel();
         assertThat(o.getItems().getFirst().getStatus()).isEqualTo(OrderItemStatus.CANCELLED);
         assertThatThrownBy(() -> o.addItem(item(OrderItemStatus.PENDING).build())).hasMessage("DIAGNOSIS_NOT_EDITABLE");
-        assertThatThrownBy(() -> o.deliver(NOW)).hasMessage("ORDER_NOT_COMPLETED");
+        assertThatThrownBy(o::requestDelivery).hasMessage("ORDER_NOT_COMPLETED");
     }
 
     @Test void allocationsAreScopedToAnItemAndRejectDuplicates() {

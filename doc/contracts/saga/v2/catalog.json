@@ -1,0 +1,77 @@
+{
+  "packageVersion": "2.0.0-os-baseline.1",
+  "architectureVersion": 2,
+  "schemaVersion": 1,
+  "status": "OS_IMPLEMENTATION_BASELINE",
+  "approvedContract": false,
+  "messages": [
+    {
+      "id": "EV-01",
+      "type": "OrcamentoEnviado",
+      "kind": "event",
+      "producer": "billing-service",
+      "consumer": "os-service",
+      "schema": "events/OrcamentoEnviado.schema.json",
+      "example": "examples/OrcamentoEnviado.json",
+      "enabled": true,
+      "status": "DEFINED_FOR_OS",
+      "condition": null
+    },
+    {
+      "id": "EV-02",
+      "type": "OrcamentoAprovado",
+      "kind": "event",
+      "producer": "billing-service",
+      "consumer": "os-service",
+      "schema": "events/OrcamentoAprovado.schema.json",
+      "example": "examples/OrcamentoAprovado.json",
+      "enabled": true,
+      "status": "DEFINED_FOR_OS",
+      "condition": null
+    },
+    {
+      "id": "EV-02B",
+      "type": "OrcamentoRejeitado",
+      "kind": "event",
+      "producer": "billing-service",
+      "consumer": "os-service",
+      "schema": "events/OrcamentoRejeitado.schema.json",
+      "example": "examples/OrcamentoRejeitado.json",
+      "enabled": true,
+      "status": "DEFINED_FOR_OS",
+      "condition": null
+    },
+    {
+      "id": "EV-03",
+      "type": "PagamentoConfirmado",
+      "kind": "event",
+      "producer": "billing-service",
+      "consumer": "os-service",
+      "schema": "events/PagamentoConfirmado.schema.json",
+      "example": "examples/PagamentoConfirmado.json",
+      "enabled": true,
+      "status": "DEFINED_FOR_OS",
+      "condition": null
+    },
+    {
+      "id": "EV-04",
+      "type": "PagamentoAtualizado",
+      "kind": "event",
+      "producer": "billing-service",
+      "consumer": "os-service",
+      "schema": "events/PagamentoAtualizado.schema.json",
+      "example": "examples/PagamentoAtualizado.json",
+      "enabled": true,
+      "status": "DEFINED_FOR_OS",
+      "condition": null
+    }
+  ],
+  "openapi": [
+    "os-internal.openapi.yaml",
+    "inventory.openapi.yaml",
+    "billing.openapi.yaml",
+    "os-api.openapi.yaml"
+  ],
+  "readyForOsImplementation": true,
+  "decisionAuthority": "Matheus delegated implementation decisions, 2026-11-07"
+}

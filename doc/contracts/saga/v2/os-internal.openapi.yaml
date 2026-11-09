@@ -1,0 +1,366 @@
+openapi: 3.0.3
+info:
+  title: OS — CT-02A e CT-03 para Billing
+  version: 2.0.0-os-baseline.1
+  description: Proposta revisável fase 1B. Sem implementação ou aceite externo; decisões em decisions.md.
+servers:
+- url: https://internal.example.invalid
+  description: Placeholder; Marcelo confirma identidade e rede.
+security:
+- ServiceIdentity: []
+paths:
+  /internal/service-orders/{serviceOrderId}:
+    get:
+      operationId: getServiceOrderForBilling
+      description: 'CT-02A: leitura autorizada ao Billing. Somente COMPLETED habilita criação manual de pagamento.
+        Outros estados retornam 200 e impedem cobrança; ausência/timeout não autorizam.'
+      parameters:
+      - name: serviceOrderId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Estado comercial atual.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceOrderState'
+        '400':
+          description: INVALID_REQUEST; formato ou IDs divergentes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: UNAUTHENTICATED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: FORBIDDEN; serviço/posse/filial sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: DEPENDENCY_UNAVAILABLE; resultado desconhecido, repetir identidade original.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '504':
+          description: DEPENDENCY_TIMEOUT; não prova ausência de efeito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      x-contract-id: CT-02A
+  /internal/service-orders/{serviceOrderId}/quotation-context:
+    get:
+      operationId: getQuotationContext
+      description: 'CT-03: immutable technical snapshot keyed by OS/compositionVersion. Optional version query selects
+        the exact historical snapshot; 404 never substitutes current composition. Material quantities are absolute
+        per service item.'
+      parameters:
+      - name: serviceOrderId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: compositionVersion
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Composição técnica; não é aprovação comercial.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuotationContext'
+        '400':
+          description: INVALID_REQUEST; formato ou IDs divergentes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: UNAUTHENTICATED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: FORBIDDEN; serviço/posse/filial sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Conflito de negócio ou IDEMPOTENCY_CONFLICT; ver códigos da operação.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: DEPENDENCY_UNAVAILABLE; resultado desconhecido, repetir identidade original.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '504':
+          description: DEPENDENCY_TIMEOUT; não prova ausência de efeito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      x-contract-id: CT-03
+  /internal/auth/customer-lookup:
+    post:
+      operationId: lookupCustomerForAuth
+      x-contract-id: AUTH-LOOKUP
+      description: Exclusive Auth to OS. Validate/normalize CPF. Preserve inactive flag and existing auth claims.
+        Do not log body.
+      parameters:
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Customer fields required by the existing login
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthCustomer'
+        '404':
+          description: CUSTOMER_NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '400':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '504':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthCustomerLookupRequest'
+components:
+  securitySchemes:
+    ServiceIdentity:
+      type: http
+      scheme: bearer
+      description: Opaque bearer token per caller/destination pair, private TLS, route scopes. No customer JWT on
+        service routes.
+  schemas:
+    Problem:
+      type: object
+      properties:
+        code: &id001
+          type: string
+          minLength: 1
+        message: *id001
+        correlationId: &id002
+          type: string
+          format: uuid
+        operationId: *id002
+        compensationId: *id002
+      required:
+      - code
+      - message
+      - correlationId
+      additionalProperties: true
+    ServiceOrderState:
+      type: object
+      properties:
+        serviceOrderId: &id003
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+          - RECEIVED
+          - IN_DIAGNOSIS
+          - WAITING_APPROVAL
+          - APPROVED
+          - REJECTED
+          - IN_PROGRESS
+          - COMPLETED
+          - CANCELLED
+          - DELIVERED
+        updatedAt:
+          type: string
+          format: date-time
+          pattern: Z$
+        cancellationInProgress:
+          type: boolean
+      required:
+      - serviceOrderId
+      - status
+      - updatedAt
+      - cancellationInProgress
+      additionalProperties: true
+    Supply:
+      type: object
+      properties:
+        inventoryItemId: *id003
+        quantity:
+          type: integer
+          minimum: 1
+      required:
+      - inventoryItemId
+      - quantity
+      additionalProperties: true
+    QuotationItem:
+      type: object
+      properties:
+        serviceOrderItemId: *id003
+        automotiveServiceId: *id003
+        serviceAmount:
+          type: string
+          pattern: ^(0|[1-9][0-9]*)\.[0-9]{2}$
+          description: Total labor amount for this item, already multiplied by quantity; add once.
+        supplies:
+          type: array
+          items:
+            $ref: '#/components/schemas/Supply'
+          minItems: 0
+        quantity:
+          type: integer
+          minimum: 1
+        optional:
+          type: boolean
+      required:
+      - serviceOrderItemId
+      - automotiveServiceId
+      - serviceAmount
+      - supplies
+      - quantity
+      - optional
+      additionalProperties: true
+    QuotationContext:
+      type: object
+      properties:
+        serviceOrderId: *id003
+        status:
+          type: string
+          enum:
+          - RECEIVED
+          - IN_DIAGNOSIS
+          - WAITING_APPROVAL
+          - APPROVED
+          - REJECTED
+          - IN_PROGRESS
+          - COMPLETED
+          - CANCELLED
+          - DELIVERED
+        compositionVersion:
+          type: integer
+          minimum: 1
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/QuotationItem'
+          minItems: 1
+      required:
+      - serviceOrderId
+      - status
+      - compositionVersion
+      - items
+      additionalProperties: true
+    AuthCustomerLookupRequest:
+      type: object
+      properties:
+        document:
+          type: string
+          pattern: ^[0-9]{11}$
+      required:
+      - document
+      additionalProperties: true
+    AuthCustomer:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        nome:
+          type: string
+        documento:
+          type: string
+          pattern: ^[0-9]{11}$
+        email:
+          type: string
+          nullable: true
+        ativo:
+          type: boolean
+      required:
+      - id
+      - nome
+      - documento
+      - email
+      - ativo
+      additionalProperties: true
+x-implementation-status: OS_IMPLEMENTATION_BASELINE

@@ -16,6 +16,8 @@
     <argLine/>
   </properties>
   <dependencies>
+    <dependency><groupId>software.amazon.awssdk</groupId><artifactId>sqs</artifactId><version>2.31.54</version></dependency>
+    <dependency><groupId>com.networknt</groupId><artifactId>json-schema-validator</artifactId><version>1.5.6</version></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-data-jpa</artifactId></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-flyway</artifactId></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-validation</artifactId></dependency>
@@ -31,7 +33,10 @@
     <dependency><groupId>io.micrometer</groupId><artifactId>micrometer-registry-statsd</artifactId></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>
   </dependencies>
-  <build><plugins>
+  <build><resources>
+    <resource><directory>src/main/resources</directory></resource>
+    <resource><directory>doc/contracts/saga</directory><targetPath>contracts/saga</targetPath><includes><include>packages.json</include><include>v2/**/*.json</include></includes></resource>
+  </resources><plugins>
     <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-compiler-plugin</artifactId>
       <configuration><annotationProcessorPaths>
         <path><groupId>org.projectlombok</groupId><artifactId>lombok</artifactId><version>${lombok.version}</version></path>

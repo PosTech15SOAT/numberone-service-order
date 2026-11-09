@@ -24,8 +24,10 @@ public class ServiceOrderItemEntity {
     @Column(nullable = false) private int estimatedTimeMinutes;
     @Column(nullable = false) private boolean optional;
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 40) private OrderItemStatus status;
+    @Column(nullable = false) private boolean startPending;
     private LocalDateTime startDateTime;
     private LocalDateTime endDateTime;
+    private UUID startOperationId;
     @OneToMany(mappedBy = "item", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<MaterialAllocationEntity> materials = new ArrayList<>();
 }

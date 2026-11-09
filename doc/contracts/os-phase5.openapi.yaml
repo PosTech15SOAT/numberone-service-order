@@ -1,0 +1,223 @@
+openapi: 3.0.3
+info:
+  title: NumberOne OS — compensação e retomada da fase 5
+  version: 5.0.0-local
+  description: >-
+    Extensão das rotas administrativas. Exige ADMIN, identidade autenticada via
+    configuração de segurança da OS e escopo de filial. Substitui a antiga
+    operação de cancelamento local sem conferência. Contratos dos participantes
+    permanecem no pacote saga/v2.
+paths:
+  /api/admin/ordens-servico/{id}/cancelar:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+      - $ref: '#/components/parameters/Correlation'
+    patch:
+      operationId: requestFullCancellation
+      requestBody:
+        $ref: '#/components/requestBodies/Verification'
+      responses:
+        '202':
+          $ref: '#/components/responses/Status'
+        '200':
+          $ref: '#/components/responses/Status'
+        '409':
+          description: Revisão operacional registrada (Status) ou conflito de regra/identidade (erro padrão da OS).
+        '400':
+          description: Conferência ausente ou inválida.
+        '401':
+          description: Identidade ausente.
+        '403':
+          description: ADMIN necessário.
+        '404':
+          description: OS inexistente ou fora da filial.
+  /api/admin/itens-ordem-servico/{id}/cancelar:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+      - $ref: '#/components/parameters/Correlation'
+    patch:
+      operationId: requestPartialCancellationReview
+      description: Registra PARTIAL e o item na evidência, independentemente do scope enviado. Nunca cancela parcialmente de forma automática.
+      requestBody:
+        $ref: '#/components/requestBodies/Verification'
+      responses:
+        '409':
+          description: Revisão operacional registrada ou conflito com pedido de cancelamento preexistente.
+        '400':
+          description: Conferência ausente ou inválida.
+        '401':
+          description: Identidade ausente.
+        '403':
+          description: ADMIN necessário.
+        '404':
+          description: Item inexistente ou fora da filial.
+  /api/admin/ordens-servico/{id}/compensacao:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+      - $ref: '#/components/parameters/Correlation'
+    get:
+      operationId: getCompensation
+      responses:
+        '200':
+          $ref: '#/components/responses/Status'
+        '401':
+          description: Identidade ausente.
+        '403':
+          description: ADMIN necessário.
+        '404':
+          description: OS inexistente ou fora da filial.
+  /api/admin/ordens-servico/{id}/compensacao/retomar:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+      - $ref: '#/components/parameters/Correlation'
+    post:
+      operationId: resumeEligibleCompensation
+      description: >-
+        Registra decisão auditada após resolução externa de conflito. Revalida a
+        janela e repete os pedidos imutáveis originais. Casos inicialmente fora
+        da janela automática não são autorizados por esta rota.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+                  maxLength: 1000
+      responses:
+        '202':
+          $ref: '#/components/responses/Status'
+        '409':
+          description: OPERATIONAL_DECISION_REQUIRED; não elegível para retomada automática.
+        '400':
+          description: Justificativa inválida.
+        '401':
+          description: Identidade ausente.
+        '403':
+          description: ADMIN necessário.
+        '404':
+          description: OS inexistente ou fora da filial.
+components:
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Correlation:
+      name: X-Correlation-Id
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 1
+  requestBodies:
+    Verification:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Verification'
+  responses:
+    Status:
+      description: Estado durável. COMPENSATING não significa cancelamento concluído; COMPENSATED exige confirmação de todos os efeitos aplicáveis.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Status'
+  schemas:
+    Verification:
+      type: object
+      required: [scope, reason, unusedConfirmed, physicallyRemoved, returnConfirmed, verifiedAt, evidenceReference]
+      properties:
+        scope:
+          type: string
+          enum: [FULL, PARTIAL]
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        unusedConfirmed:
+          type: boolean
+        physicallyRemoved:
+          type: boolean
+        returnConfirmed:
+          type: boolean
+        verifiedAt:
+          type: string
+          format: date-time
+        evidenceReference:
+          type: string
+          minLength: 1
+          maxLength: 1000
+    Status:
+      type: object
+      required: [serviceOrderId, state, operations, reviewDecisions]
+      properties:
+        serviceOrderId:
+          type: string
+          format: uuid
+        state:
+          type: string
+        reason:
+          type: string
+          nullable: true
+        returnState:
+          type: string
+          nullable: true
+        cancellation:
+          type: object
+          nullable: true
+          description: Pedido original, autor autenticado, instantes, correlação, composição e decisão de elegibilidade.
+        reviewDecisions:
+          type: array
+          items:
+            type: object
+            required: [author, reason, previousReason, at]
+        operations:
+          type: array
+          items:
+            type: object
+            required: [operation_id, intent, state, attempts, next_attempt_at]
+            properties:
+              operation_id:
+                type: string
+                format: uuid
+              original_operation_id:
+                type: string
+                format: uuid
+                nullable: true
+              budget_id:
+                type: string
+                format: uuid
+                nullable: true
+              budget_revision:
+                type: integer
+                nullable: true
+              intent:
+                type: string
+                enum: [START_ITEM, RESOLVE_STOCK, CANCEL_BUDGET, CLOSE_BUDGET_CONTEXT]
+              state:
+                type: string
+                enum: [START_PENDING, AWAITING_RESULT, CONFIRMED, REJECTED, PENDING, SUCCEEDED, SKIPPED, NEEDS_REVIEW]
+              attempts:
+                type: integer
+                minimum: 0
+              next_attempt_at:
+                type: string
+                format: date-time
+              reason:
+                type: string
+                nullable: true
+              result:
+                type: object
+                nullable: true
+              late_result:
+                type: object
+                nullable: true

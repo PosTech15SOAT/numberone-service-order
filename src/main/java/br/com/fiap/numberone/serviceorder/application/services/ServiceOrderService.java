@@ -24,11 +24,14 @@ public class ServiceOrderService {
     private final AutomotiveServiceService services;
     private final MaterialReferenceGateway materials;
     private final BranchScope branch;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     public ServiceOrderService(ServiceOrderGateway orders, CustomerService customers, VehicleService vehicles,
-            AutomotiveServiceService services, MaterialReferenceGateway materials, BranchScope branch) {
+            AutomotiveServiceService services, MaterialReferenceGateway materials, BranchScope branch,
+            org.springframework.jdbc.core.JdbcTemplate jdbc) {
         this.orders = orders; this.customers = customers; this.vehicles = vehicles;
         this.services = services; this.materials = materials; this.branch = branch;
+        this.jdbc = jdbc;
     }
 
     public ServiceOrder create(UUID customerId, UUID vehicleId, String description,
@@ -77,13 +80,16 @@ public class ServiceOrderService {
 
     public ServiceOrderItem cancelItem(UUID itemId) {
         var order = byItem(itemId, true);
-        order.requireEditableDiagnosis();
-        order.item(itemId).cancelBeforeApproval();
+        order.cancelItem(itemId);
         return orders.save(order).item(itemId);
     }
 
     public ServiceOrderItem completeItem(UUID itemId) {
         var order = byItem(itemId, true);
+        var saga = jdbc.queryForMap("SELECT state,cancellation_in_progress FROM service_order_saga WHERE service_order_id=? FOR UPDATE", order.getId());
+        if (!"IN_EXECUTION".equals(saga.get("state")) || Boolean.TRUE.equals(saga.get("cancellation_in_progress"))) {
+            throw new OrderRuleException("ITEM_COMPLETION_BLOCKED");
+        }
         order.completeItem(itemId, now());
         return orders.save(order).item(itemId);
     }
@@ -110,18 +116,22 @@ public class ServiceOrderService {
         orders.save(order);
     }
 
-    public void requestStart(UUID orderId) { load(orderId, true).requestStart(); }
-    public void requestItemStart(UUID itemId) { byItem(itemId, true).requestStart(); }
-
-    public ServiceOrder cancel(UUID id) { var o = load(id, true); o.cancel(); return orders.save(o); }
-    public ServiceOrder complete(UUID id) { var o = load(id, true); o.complete(); return orders.save(o); }
-    public ServiceOrder deliver(UUID id) { var o = load(id, true); o.deliver(now()); return orders.save(o); }
 
     private ServiceOrder load(UUID id, boolean forUpdate) {
-        return orders.find(id, branch.id(), forUpdate).orElseThrow(OrderNotFoundException::new);
+        var order = orders.find(id, branch.id(), forUpdate).orElseThrow(OrderNotFoundException::new);
+        if (forUpdate) { mutable(order); }
+        return order;
     }
     private ServiceOrder byItem(UUID id, boolean forUpdate) {
-        return orders.findByItem(id, branch.id(), forUpdate).orElseThrow(OrderNotFoundException::new);
+        var order = orders.findByItem(id, branch.id(), forUpdate).orElseThrow(OrderNotFoundException::new);
+        if (forUpdate) { mutable(order); }
+        return order;
+    }
+    private void mutable(ServiceOrder order) {
+        var s=jdbc.queryForMap("SELECT state,cancellation_in_progress FROM service_order_saga WHERE service_order_id=? FOR UPDATE",order.getId());
+        if (Boolean.TRUE.equals(s.get("cancellation_in_progress")) || "MANUAL_INTERVENTION".equals(s.get("state"))) {
+            throw new OrderRuleException("CANCELLATION_OR_REVIEW_IN_PROGRESS");
+        }
     }
     private LocalDateTime now() { return LocalDateTime.now(ZoneOffset.UTC); }
 }

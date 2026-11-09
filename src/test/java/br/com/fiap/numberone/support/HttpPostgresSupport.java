@@ -24,12 +24,13 @@ public abstract class HttpPostgresSupport extends PostgresSupport {
     protected static final String MATERIAL = "80000000-0000-4000-8000-000000000001";
 
     @BeforeEach void cleanEphemeralTestDatabase() {
-        jdbc.execute("TRUNCATE material_movement_reference, material_previsto, item_ordem_servico, ordem_servico, veiculo, cliente, servico_automotivo CASCADE");
+        jdbc.execute("TRUNCATE service_order_payment, saga_operation, inbox_event, service_order_saga, material_movement_reference, material_previsto, item_ordem_servico, ordem_servico, "
+                + "service_order_composition, veiculo, cliente, servico_automotivo");
     }
 
     protected record Reply(int status, JsonNode body) { }
     protected Map<String, String> admin() {
-        return Map.of("X-Authenticated-Subject", "fixture-admin", "X-Authenticated-Status", "ACTIVE",
+        return Map.of("X-Authenticated-Subject", "00000007-0000-4000-8000-000000000001", "X-Authenticated-Status", "ACTIVE",
                 "X-Authenticated-Roles", "ADMIN", "X-Authenticated-Permissions", "");
     }
     protected Map<String, String> customer(UUID id) {

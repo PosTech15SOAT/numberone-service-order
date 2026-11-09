@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.numberone.invalid/saga/v2/events/PagamentoAtualizado.schema.json",
+  "allOf": [
+    {
+      "$ref": "https://contracts.numberone.invalid/saga/v2/envelope.schema.json"
+    },
+    {
+      "properties": {
+        "eventType": {
+          "const": "PagamentoAtualizado"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "serviceOrderId": {
+              "$ref": "https://contracts.numberone.invalid/saga/v2/common.schema.json#/$defs/uuid"
+            },
+            "paymentId": {
+              "$ref": "https://contracts.numberone.invalid/saga/v2/common.schema.json#/$defs/uuid"
+            },
+            "paymentStatus": {
+              "const": "REFUNDED",
+              "type": "string"
+            },
+            "paymentVersion": {
+              "$ref": "https://contracts.numberone.invalid/saga/v2/common.schema.json#/$defs/revision"
+            }
+          },
+          "required": [
+            "serviceOrderId",
+            "paymentId",
+            "paymentStatus",
+            "paymentVersion"
+          ],
+          "additionalProperties": true
+        }
+      }
+    }
+  ],
+  "description": "Integral refund confirmed by Billing; enabled in the OS implementation baseline."
+}
