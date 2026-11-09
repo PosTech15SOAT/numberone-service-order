@@ -25,7 +25,7 @@ jobs:
         run: ./mvnw --batch-mode clean verify
       - name: Build portable contract validator
         run: docker build -f scripts/contracts.Dockerfile -t os-contract-validation .
-      - name: Validate all contracts and fixtures without network
+      - name: Validate active review package and legacy contracts without network
         run: docker run --rm --network none -v "$PWD:/workspace" os-contract-validation
       - name: Build container image
         run: docker build --tag numberone-service-order:${{ github.sha }} .
