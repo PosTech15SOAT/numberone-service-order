@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://contracts.numberone.invalid/saga/v2/proposals/approval-composition.schema.json",
-  "description": "PENDENTE Julio + Matheus. Perfil candidato, não habilitado no dispatch ativo.",
+  "description": "Historical profile now incorporated into all active budget events.",
   "allOf": [
     {
       "$ref": "https://contracts.numberone.invalid/saga/v2/events/OrcamentoAprovado.schema.json"

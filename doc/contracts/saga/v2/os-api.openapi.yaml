@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: OS — API compatível e início pendente
-  version: 2.0.0-review.1
+  version: 2.0.0-os-baseline.1
   description: Proposta revisável fase 1B. Sem implementação ou aceite externo; decisões em decisions.md.
 servers:
 - url: https://gateway.example.invalid
@@ -11,13 +11,9 @@ paths:
   /api/admin/itens-ordem-servico/{id}/iniciar:
     patch:
       operationId: requestServiceOrderItemStart
-      description: 'Sem body, rota legada. Orçamento vigente aprovado e composição vinculada; sem guarda financeira.
-        Materiais: persistir intenção REST e retornar 202, status comercial continua PENDENTE/AGUARDANDO_PECAS_E_INSUMOS;
-        executionState=START_PENDING. Só CONSUMED + guardas locais confirma execução. Timeout mantém pendência e
-        mesma tentativa. Sem materiais: 200 local. Idempotency-Key opcional para compatibilidade; sem header, servidor
-        reutiliza tentativa ativa por item/composição sob lock. Após falta confirmada, nova ação explícita cria
-        nova tentativa; cliente antigo deve consultar andamento antes de repetir. Com header, mesma chave/conteúdo
-        sempre recupera a mesma operação.'
+      description: Persist attempt before REST. 202 remains pending; 200 confirms start. New clients send Idempotency-Key.
+        Legacy requests reuse active or last durable attempt for item/composition; after rejection a new explicit
+        key is needed.
       parameters:
       - name: id
         in: path
@@ -172,10 +168,8 @@ paths:
   /api/admin/ordens-servico/{id}/iniciar:
     patch:
       operationId: requestOrderStart
-      description: 'Rota legada sem body. Proposta pendente Matheus: registra intenção de início da ordem; não baixa
-        saldo nem autoriza uso físico. Com materiais ainda não confirmados, 202 com status APROVADA; primeiro item
-        confirmado muda EM_EXECUCAO. Cliente inicia itens pela rota própria. Sem itens elegíveis retorna 409. Sem
-        materiais pode confirmar localmente após guardas.'
+      description: Validate current approval and return readiness. Actual consumption/start is per item. This route
+        creates no pending operation.
       parameters:
       - name: id
         in: path
@@ -192,22 +186,11 @@ paths:
           maxLength: 128
       responses:
         '200':
-          description: Execução confirmada localmente conforme itens.
+          description: Eligibility checked; start each service item explicitly
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/StartedOrder'
-        '202':
-          description: Intenção recebida, itens ainda devem iniciar; consultar acompanhamento.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PendingOrder'
-          headers:
-            Location:
-              description: /api/public/ordens-servico/{id}/acompanhamento
-              schema:
-                type: string
+                $ref: '#/components/schemas/ReadyOrder'
         '400':
           description: INVALID_REQUEST; formato ou IDs divergentes.
           content:
@@ -253,6 +236,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/LegacyError'
+      x-contract-id: OS-READY
   /api/admin/ordens-servico/{id}/entregar:
     patch:
       operationId: deliverServiceOrder
@@ -333,12 +317,157 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/LegacyError'
+  /api/admin/ordens-servico/{id}/cancelar:
+    patch:
+      operationId: requestOrderCancellation
+      x-contract-id: OS-CANCEL
+      description: Persist COMPENSATING, block starts and close billing context via CT-09/11. Optional body preserves
+        legacy shape; require evidence when applicable.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '202':
+          description: Durable cancellation accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancellationPending'
+        '409':
+          description: Not eligible or required evidence missing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+        '400':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '504':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancellationRequest'
+  /api/admin/ordens-servico/{id}/retirada:
+    post:
+      operationId: recordCancelledOrderWithdrawal
+      x-contract-id: OS-WITHDRAWAL
+      description: Require cancelled/compensated order, resolved effects, authorization and physical vehicle release
+        confirmation. Preserve CANCELADA.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Idempotent audited withdrawal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Withdrawal'
+        '409':
+          description: Pending effects or not cancelled/compensated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyError'
+        '400':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '504':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
 components:
   securitySchemes:
     ServiceIdentity:
       type: http
       scheme: bearer
-      description: 'Proposta pendente Marcelo: credencial de serviço com audiência/permissões; nunca JWT de cliente.'
+      description: Opaque bearer token per caller/destination pair, private TLS, route scopes. No customer JWT on
+        service routes.
     GatewayIdentity:
       type: http
       scheme: bearer
@@ -403,9 +532,6 @@ components:
         servicoAutomotivo:
           type: object
           additionalProperties: true
-        valor: &id003
-          type: number
-          nullable: true
         status:
           $ref: '#/components/schemas/ItemStatus'
         opcional:
@@ -426,9 +552,12 @@ components:
         executionState:
           $ref: '#/components/schemas/ExecutionState'
         startOperationId: *id001
+        valorEstimadoUnitario:
+          type: string
+          pattern: ^(0|[1-9][0-9]*)\.[0-9]{2}$
+          maxLength: 20
       required:
       - id
-      - idOrdemServico
       - status
       additionalProperties: true
     Order:
@@ -473,6 +602,14 @@ components:
         updated_at: *id002
         sagaState:
           $ref: '#/components/schemas/SagaState'
+        compositionVersion: &id003
+          type: integer
+          minimum: 1
+        budgetVersion: *id003
+        budgetRevision: *id003
+        executionState:
+          type: string
+          description: Existing phase-2 local indicator; sagaState is the coordinator phase.
       required:
       - id
       - status
@@ -519,8 +656,10 @@ components:
           type: object
           nullable: true
           properties:
-            valorProposto: *id003
-            valorAprovado: *id003
+            valorProposto: &id004
+              type: number
+              nullable: true
+            valorAprovado: *id004
             status:
               type: string
             enviadoEm: *id002
@@ -663,3 +802,94 @@ components:
       - status
       additionalProperties: true
       description: Formato técnico já emitido pelo filtro de segurança/correlação da base 1A.
+    ReadyOrder:
+      allOf:
+      - $ref: '#/components/schemas/Order'
+      - type: object
+        properties:
+          status:
+            type: string
+            enum:
+            - APROVADA
+            - EM_EXECUCAO
+          executionState:
+            type: string
+            enum:
+            - READY_FOR_EXECUTION
+            - IN_PROGRESS
+        required:
+        - status
+        - executionState
+        additionalProperties: true
+    CancellationRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          minLength: 1
+        unusedConfirmed:
+          type: boolean
+          enum:
+          - true
+        evidence:
+          type: object
+          properties:
+            verifiedBy:
+              type: string
+              format: uuid
+            verifiedAt:
+              type: string
+              format: date-time
+              pattern: Z$
+            reference:
+              type: string
+              minLength: 1
+          required:
+          - verifiedBy
+          - verifiedAt
+          - reference
+          additionalProperties: true
+      required:
+      - reason
+      additionalProperties: true
+    CancellationPending:
+      type: object
+      properties:
+        serviceOrderId: &id005
+          type: string
+          format: uuid
+        operationId: *id005
+        sagaState:
+          type: string
+          enum:
+          - COMPENSATING
+      required:
+      - serviceOrderId
+      - operationId
+      - sagaState
+      additionalProperties: true
+    Withdrawal:
+      allOf:
+      - $ref: '#/components/schemas/Order'
+      - type: object
+        properties:
+          status:
+            type: string
+            enum:
+            - CANCELADA
+          sagaState:
+            type: string
+            enum:
+            - COMPENSATED
+          withdrawnAt:
+            type: string
+            format: date-time
+            pattern: Z$
+          withdrawnBy: *id005
+        required:
+        - status
+        - sagaState
+        - withdrawnAt
+        - withdrawnBy
+        additionalProperties: true
+x-implementation-status: OS_IMPLEMENTATION_BASELINE

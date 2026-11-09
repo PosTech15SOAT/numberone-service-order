@@ -8,6 +8,7 @@
     "serviceOrderId": "00000001-0000-4000-8000-000000000001",
     "budgetId": "00000002-0000-4000-8000-000000000001",
     "budgetVersion": 1,
-    "approvedAmount": "350.00"
+    "approvedAmount": "350.00",
+    "compositionVersion": 3
   }
 }

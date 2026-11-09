@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Inventory — disponibilidade e CT-05/08/08B para OS
-  version: 2.0.0-review.1
+  version: 2.0.0-os-baseline.1
   description: Proposta revisável fase 1B. Sem implementação ou aceite externo; decisões em decisions.md.
 servers:
 - url: https://internal.example.invalid
@@ -154,11 +154,9 @@ paths:
   /internal/inventory/consumptions/{operationId}/reversal:
     post:
       operationId: reverseOrCloseConsumption
-      description: 'CT-08B: Idempotency-Key = compensationId. Serializar com CT-05 pela operationId inclusive sem
-        linha existente. Ausente: gravar tombstone CLOSED durável. CONSUMED: REVERSED somente com evidência conferida.
-        REVERSED/CLOSED são terminais; repetir chave retorna resultado. Evidência é proposta pendente Anderson/Matheus;
-        unusedConfirmed=true declara não uso ou devolução física validada, não autoriza estoque fictício. REJECTED
-        já resolve C2; se houver corrida devolver recusa OPERATION_ALREADY_REJECTED e reconciliar CT-08.'
+      description: 'CT-08B: Idempotency-Key equals compensationId. Atomically close an unknown attempt or reverse
+        a confirmed consumption once, preserving evidence and original movements. CLOSED/REVERSED are terminal.
+        Evidence is supplied by authorized OS after physical verification. A delayed consumption cannot reopen it.'
       parameters:
       - name: operationId
         in: path
@@ -293,7 +291,8 @@ components:
     ServiceIdentity:
       type: http
       scheme: bearer
-      description: 'Proposta pendente Marcelo: credencial de serviço com audiência/permissões; nunca JWT de cliente.'
+      description: Opaque bearer token per caller/destination pair, private TLS, route scopes. No customer JWT on
+        service routes.
   schemas:
     Problem:
       type: object
@@ -554,3 +553,4 @@ components:
       - message
       - correlationId
       additionalProperties: true
+x-implementation-status: OS_IMPLEMENTATION_BASELINE

@@ -378,7 +378,7 @@
       "document": "os-api.openapi.yaml",
       "path": "/api/admin/ordens-servico/{id}/iniciar",
       "method": "patch",
-      "status": "202",
+      "status": "200",
       "valid": true
     },
     {
@@ -394,6 +394,126 @@
       "document": "os-api.openapi.yaml",
       "path": "/api/admin/ordens-servico/{id}/entregar",
       "method": "patch",
+      "status": "200",
+      "valid": false,
+      "keyword": "enum",
+      "pointer": "/status"
+    },
+    {
+      "file": "http-examples/current-budget.json",
+      "document": "billing.openapi.yaml",
+      "path": "/internal/budgets/service-orders/{serviceOrderId}/current",
+      "method": "get",
+      "status": "200",
+      "valid": true
+    },
+    {
+      "file": "http-examples/invalid-current-without-composition.json",
+      "document": "billing.openapi.yaml",
+      "path": "/internal/budgets/service-orders/{serviceOrderId}/current",
+      "method": "get",
+      "status": "200",
+      "valid": false,
+      "keyword": "required",
+      "pointer": "/"
+    },
+    {
+      "file": "http-examples/current-budget-not-found.json",
+      "document": "billing.openapi.yaml",
+      "path": "/internal/budgets/service-orders/{serviceOrderId}/current",
+      "method": "get",
+      "status": "404",
+      "valid": true
+    },
+    {
+      "file": "http-examples/context-cancellation-request.json",
+      "document": "billing.openapi.yaml",
+      "path": "/internal/budgets/service-orders/{serviceOrderId}/cancellation",
+      "method": "post",
+      "status": "request",
+      "valid": true
+    },
+    {
+      "file": "http-examples/context-closed-with-budget.json",
+      "document": "billing.openapi.yaml",
+      "path": "/internal/budgets/service-orders/{serviceOrderId}/cancellation",
+      "method": "post",
+      "status": "200",
+      "valid": true
+    },
+    {
+      "file": "http-examples/context-closed-without-budget.json",
+      "document": "billing.openapi.yaml",
+      "path": "/internal/budgets/service-orders/{serviceOrderId}/cancellation",
+      "method": "post",
+      "status": "200",
+      "valid": true
+    },
+    {
+      "file": "http-examples/invalid-context-false-no-budget.json",
+      "document": "billing.openapi.yaml",
+      "path": "/internal/budgets/service-orders/{serviceOrderId}/cancellation",
+      "method": "post",
+      "status": "200",
+      "valid": false,
+      "keyword": "oneOf",
+      "pointer": "/"
+    },
+    {
+      "file": "http-examples/auth-customer-request.json",
+      "document": "os-internal.openapi.yaml",
+      "path": "/internal/auth/customer-lookup",
+      "method": "post",
+      "status": "request",
+      "valid": true
+    },
+    {
+      "file": "http-examples/auth-customer.json",
+      "document": "os-internal.openapi.yaml",
+      "path": "/internal/auth/customer-lookup",
+      "method": "post",
+      "status": "200",
+      "valid": true
+    },
+    {
+      "file": "http-examples/invalid-auth-document.json",
+      "document": "os-internal.openapi.yaml",
+      "path": "/internal/auth/customer-lookup",
+      "method": "post",
+      "status": "request",
+      "valid": false,
+      "keyword": "pattern",
+      "pointer": "/document"
+    },
+    {
+      "file": "http-examples/os-cancellation-request.json",
+      "document": "os-api.openapi.yaml",
+      "path": "/api/admin/ordens-servico/{id}/cancelar",
+      "method": "patch",
+      "status": "request",
+      "valid": true
+    },
+    {
+      "file": "http-examples/os-cancellation-pending.json",
+      "document": "os-api.openapi.yaml",
+      "path": "/api/admin/ordens-servico/{id}/cancelar",
+      "method": "patch",
+      "status": "202",
+      "valid": true
+    },
+    {
+      "file": "http-examples/cancelled-order-withdrawal.json",
+      "document": "os-api.openapi.yaml",
+      "path": "/api/admin/ordens-servico/{id}/retirada",
+      "method": "post",
+      "status": "200",
+      "valid": true
+    },
+    {
+      "file": "http-examples/invalid-withdrawal-as-delivery.json",
+      "document": "os-api.openapi.yaml",
+      "path": "/api/admin/ordens-servico/{id}/retirada",
+      "method": "post",
       "status": "200",
       "valid": false,
       "keyword": "enum",

@@ -1,0 +1,26 @@
+{
+  "date": "2026-11-07",
+  "package": "2.0.0-os-baseline.1",
+  "readyForPhase3": true,
+  "existingPhase2ApplicationFilesPreserved": 126,
+  "bothGitIndexesPreserved": true,
+  "integrationMethod": "controlled file transfer; Git ancestry unchanged",
+  "runtimeSagaImplementedByThisTask": false,
+  "contractChecksPassed": 21,
+  "activeContractSummary": {
+    "package": "v2",
+    "packageVersion": "2.0.0-os-baseline.1",
+    "approvedContract": false,
+    "schemaFiles": 9,
+    "enabledEventTypes": 5,
+    "conditionalEventTypes": 0,
+    "validEventFixtures": 6,
+    "invalidEventFixtures": 21,
+    "readyForOsImplementation": true,
+    "conditionalEventFixtures": 0,
+    "proposalFixtures": 2,
+    "openapiDocuments": 4,
+    "validHttpFixtures": 46,
+    "invalidHttpFixtures": 15
+  }
+}

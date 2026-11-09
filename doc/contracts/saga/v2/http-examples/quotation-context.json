@@ -12,7 +12,9 @@
           "inventoryItemId": "00000005-0000-4000-8000-000000000001",
           "quantity": 1
         }
-      ]
+      ],
+      "quantity": 1,
+      "optional": false
     }
   ]
 }

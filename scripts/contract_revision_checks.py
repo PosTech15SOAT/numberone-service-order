@@ -1,4 +1,4 @@
-"""Active review package checks, invoked by the existing CI validator."""
+"""OS implementation baseline checks, invoked by the existing CI validator."""
 import copy
 import hashlib
 import json
@@ -90,11 +90,14 @@ class RevisionContractChecks(unittest.TestCase):
         self.assertEqual(MANIFEST["active"], "v2")
         self.assertEqual(MANIFEST["activeVersion"], CATALOG["packageVersion"])
         self.assertFalse(MANIFEST["approvedContract"])
+        self.assertTrue(MANIFEST["readyForOsImplementation"])
+        self.assertEqual(MANIFEST["status"], "OS_IMPLEMENTATION_BASELINE")
         self.assertEqual({e["type"] for e in CATALOG["messages"] if e["enabled"]},
-                         {"OrcamentoEnviado", "OrcamentoAprovado", "OrcamentoRejeitado", "PagamentoConfirmado"})
+                         {"OrcamentoEnviado", "OrcamentoAprovado", "OrcamentoRejeitado",
+                          "PagamentoConfirmado", "PagamentoAtualizado"})
         self.assertEqual(len(ENTRIES), len(CATALOG["messages"]))
         self.assertEqual({e["schema"] for e in ENTRIES.values()},
-                         {p for p in SCHEMAS if p.startswith(("events/", "conditional/"))})
+                         {p for p in SCHEMAS if p.startswith("events/")})
         dispatch = {x["$ref"] for x in SCHEMAS["message.schema.json"]["oneOf"]}
         self.assertEqual(dispatch, {SCHEMAS[e["schema"]]["$id"] for e in ENTRIES.values() if e["enabled"]})
         for entry in ENTRIES.values():
@@ -132,13 +135,13 @@ class RevisionContractChecks(unittest.TestCase):
                 self.assertIn((case["keyword"], case["pointer"]), {(e.validator, pointer(e)) for e in errors})
                 self.assertFalse(validator("message.schema.json").is_valid(data))
 
-    def test_conditional_refund_is_not_enabled_by_existing_schema(self):
+    def test_confirmed_integral_refund_is_enabled_and_rejects_partial_status(self):
         entry = ENTRIES["PagamentoAtualizado"]
-        self.assertFalse(entry["enabled"])
-        self.assertTrue(entry["condition"])
+        self.assertTrue(entry["enabled"])
+        self.assertIsNone(entry["condition"])
         data = read(PACKAGE / entry["example"])
         validator(entry["schema"]).validate(data)
-        self.assertFalse(validator("message.schema.json").is_valid(data))
+        validator("message.schema.json").validate(data)
         for field, value in (("paymentStatus", "PARTIALLY_REFUNDED"), ("paymentVersion", 0), ("paymentId", "bad")):
             bad = copy.deepcopy(data)
             bad["payload"][field] = value
@@ -153,10 +156,11 @@ class RevisionContractChecks(unittest.TestCase):
             data["eventType"] = "UnknownType"
             self.assertFalse(validator("message.schema.json").is_valid(data))
 
-    def test_composition_proposal_and_stale_fixture_consistency_only(self):
+    def test_composition_is_required_and_stale_fixture_is_structurally_valid(self):
         data = read(PACKAGE / "proposals/approval-composition.json")
         validator("proposals/approval-composition.schema.json").validate(data)
         unbound = read(PACKAGE / ENTRIES["OrcamentoAprovado"]["example"])
+        del unbound["payload"]["compositionVersion"]
         self.assertFalse(validator("proposals/approval-composition.schema.json").is_valid(unbound))
         scenario = read(PACKAGE / "proposals/stale-approval.json")
         validator("proposals/approval-composition.schema.json").validate(scenario["incoming"])
@@ -176,7 +180,8 @@ class RevisionContractChecks(unittest.TestCase):
                 for node in walk(document):
                     if "x-contract-id" in node:
                         contract_ids.add(node["x-contract-id"])
-        self.assertEqual(contract_ids, {"CT-02A", "CT-03", "CT-05", "CT-08", "CT-08B", "CT-07", "CT-09"})
+        self.assertEqual(contract_ids, {"CT-02A", "CT-03", "CT-05", "CT-08", "CT-08B", "CT-07", "CT-09",
+                                       "CT-10", "CT-11", "AUTH-LOOKUP", "OS-READY", "OS-CANCEL", "OS-WITHDRAWAL"})
         with self.assertRaises(ValueError):
             inline_openapi({}, {"$ref": "https://remote.example.invalid/schema"})
 
@@ -197,6 +202,29 @@ class RevisionContractChecks(unittest.TestCase):
         for source in read(ROOT / "doc/specification/revision-1b/source-hashes.json")["sources"]:
             self.assertEqual(hashlib.sha256((ROOT / source["snapshot"]).read_bytes()).hexdigest(), source["sha256"])
 
+    def test_budget_events_reject_missing_or_invalid_composition_and_zero_approval(self):
+        for name in ("OrcamentoEnviado", "OrcamentoAprovado", "OrcamentoRejeitado"):
+            data = read(PACKAGE / ENTRIES[name]["example"])
+            for value in (None, 0, -1, 1.5, "3"):
+                invalid = copy.deepcopy(data)
+                invalid["payload"]["compositionVersion"] = value
+                self.assertFalse(validator("message.schema.json").is_valid(invalid), (name, value))
+            del data["payload"]["compositionVersion"]
+            self.assertFalse(validator("message.schema.json").is_valid(data), name)
+        approval = read(PACKAGE / ENTRIES["OrcamentoAprovado"]["example"])
+        for amount in ("0.00", "-1.00", "1.001", "100000000000000000.00"):
+            invalid = copy.deepcopy(approval)
+            invalid["payload"]["approvedAmount"] = amount
+            self.assertFalse(validator("message.schema.json").is_valid(invalid), amount)
+
+    def test_context_cancellation_and_order_readiness_are_explicit(self):
+        paths = SPECS["billing.openapi.yaml"]["paths"]
+        cancel = paths["/internal/budgets/service-orders/{serviceOrderId}/cancellation"]["post"]
+        self.assertTrue(any(p["name"] == "Idempotency-Key" and p["required"] for p in cancel["parameters"]))
+        start = SPECS["os-api.openapi.yaml"]["paths"]["/api/admin/ordens-servico/{id}/iniciar"]["patch"]
+        self.assertNotIn("202", start["responses"])
+        self.assertIn("200", start["responses"])
+
 
 def summary():
     cases = read(PACKAGE / "http-examples/expectations.json")["cases"]
@@ -206,6 +234,7 @@ def summary():
             "conditionalEventTypes": sum(not e["enabled"] for e in ENTRIES.values()),
             "validEventFixtures": len(list((PACKAGE / "examples").glob("*.json"))),
             "invalidEventFixtures": len(read(PACKAGE / "invalid-examples/expectations.json")["cases"]),
-            "conditionalEventFixtures": 1, "proposalFixtures": 2,
+            "readyForOsImplementation": MANIFEST["readyForOsImplementation"],
+            "conditionalEventFixtures": 0, "proposalFixtures": 2,
             "openapiDocuments": len(SPECS), "validHttpFixtures": sum(c["valid"] for c in cases),
             "invalidHttpFixtures": sum(not c["valid"] for c in cases)}

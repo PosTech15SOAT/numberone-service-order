@@ -1,7 +1,7 @@
 {
   "active": "v2",
-  "activeVersion": "2.0.0-review.1",
-  "status": "REVIEW_ONLY",
+  "activeVersion": "2.0.0-os-baseline.1",
+  "status": "OS_IMPLEMENTATION_BASELINE",
   "approvedContract": false,
   "legacy": [
     {
@@ -9,5 +9,7 @@
       "referenceCommit": "c73dfb2b74d271b6808c98170a1bb8a9b382aac4",
       "validation": "regression-only"
     }
-  ]
+  ],
+  "readyForOsImplementation": true,
+  "decisionAuthority": "Matheus delegated implementation decisions, 2026-11-07"
 }

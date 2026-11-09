@@ -1,8 +1,8 @@
 {
-  "packageVersion": "2.0.0-review.1",
+  "packageVersion": "2.0.0-os-baseline.1",
   "architectureVersion": 2,
   "schemaVersion": 1,
-  "status": "REVIEW_ONLY",
+  "status": "OS_IMPLEMENTATION_BASELINE",
   "approvedContract": false,
   "messages": [
     {
@@ -14,7 +14,7 @@
       "schema": "events/OrcamentoEnviado.schema.json",
       "example": "examples/OrcamentoEnviado.json",
       "enabled": true,
-      "status": "PROPOSED",
+      "status": "DEFINED_FOR_OS",
       "condition": null
     },
     {
@@ -26,7 +26,7 @@
       "schema": "events/OrcamentoAprovado.schema.json",
       "example": "examples/OrcamentoAprovado.json",
       "enabled": true,
-      "status": "PROPOSED",
+      "status": "DEFINED_FOR_OS",
       "condition": null
     },
     {
@@ -38,7 +38,7 @@
       "schema": "events/OrcamentoRejeitado.schema.json",
       "example": "examples/OrcamentoRejeitado.json",
       "enabled": true,
-      "status": "PROPOSED",
+      "status": "DEFINED_FOR_OS",
       "condition": null
     },
     {
@@ -50,7 +50,7 @@
       "schema": "events/PagamentoConfirmado.schema.json",
       "example": "examples/PagamentoConfirmado.json",
       "enabled": true,
-      "status": "PROPOSED",
+      "status": "DEFINED_FOR_OS",
       "condition": null
     },
     {
@@ -59,11 +59,11 @@
       "kind": "event",
       "producer": "billing-service",
       "consumer": "os-service",
-      "schema": "conditional/PagamentoAtualizado.schema.json",
-      "example": "conditional/examples/PagamentoAtualizado.json",
-      "enabled": false,
-      "status": "CONDITIONAL",
-      "condition": "Julio confirma estorno integral na v1 do Billing e registra aceite versionado."
+      "schema": "events/PagamentoAtualizado.schema.json",
+      "example": "examples/PagamentoAtualizado.json",
+      "enabled": true,
+      "status": "DEFINED_FOR_OS",
+      "condition": null
     }
   ],
   "openapi": [
@@ -71,5 +71,7 @@
     "inventory.openapi.yaml",
     "billing.openapi.yaml",
     "os-api.openapi.yaml"
-  ]
+  ],
+  "readyForOsImplementation": true,
+  "decisionAuthority": "Matheus delegated implementation decisions, 2026-11-07"
 }

@@ -1,61 +1,26 @@
-# Contratos da Saga — 2.0.0-review.1
+# Contratos da Saga · 2.0.0-os-baseline.1
 
-**Pacote ativo para revisão da fase 1B. Não aprovado entre serviços.**
-Base: `c73dfb2`; desenho arquitetural v2; novos eventos com `schemaVersion: 1`.
-O [ADR 0003](../../../adr/0003-revisao-1b-contratos-arquitetura-v2.md) seleciona este
-pacote, preserva [v1](../v1/README.md) e explica a mudança de semântica.
+Base definida por delegação de Matheus, pronta para a implementação da OS com
+fixtures locais. `readyForOsImplementation=true` identifica esse uso.
+`approvedContract=false` registra que a integração conjunta ainda será revisada.
+O pacote substitui `2.0.0-review.1` no manifesto ativo. A revisão anterior está
+preservada no commit `afdd830`. O diretório v1 continua como regressão histórica.
 
-| Artefato | Conteúdo para revisão |
+| Artefato | Conteúdo |
 | --- | --- |
-| [Catálogo](catalog.json) e [dispatch](message.schema.json) | Quatro eventos habilitados; EV-04 condicional e desabilitado |
-| [Mensagens](messages.md) | Envelope, IDs, revisões, idempotência, ordenação e recuperação |
-| [Fila e DLQ](queues.md) | Billing produtor, OS consumidor, IAM e reprocessamento |
-| [Operações REST](rest-operations.md) | Donos, HTTP, timeout, CLOSED e REVERSED |
-| [OS interna](os-internal.openapi.yaml) | CT-02A e CT-03 para Billing |
-| [Inventory](inventory.openapi.yaml) | Disponibilidade, CT-05, CT-08 e CT-08B |
-| [Billing](billing.openapi.yaml) | CT-07 e CT-09 |
-| [API OS](os-api.openapi.yaml) | Início pendente, acompanhamento e entrega |
-| [Compatibilidade](api-compatibility.md) | Rotas e DTOs legados, mudanças observáveis |
-| [Vínculo de aprovação](approval-composition.md) | Snapshot imutável e exemplo de aprovação obsoleta |
-| [Transições](state-transitions.md) | Estados comerciais, Saga e compensação C1–C6 |
-| [Matriz de decisões](decisions.md) | Pendências para Julio, Anderson, Marcelo e Matheus |
-| [Cenários](review-scenarios.md) | Resultado esperado e limite da evidência offline |
+| [Catálogo](catalog.json), [dispatch](message.schema.json) e [eventos](messages.md) | Cinco eventos habilitados, composição obrigatória e valor aprovado positivo. |
+| [Guia da equipe](team-guidance.md) e [decisões](decisions.md) | Escolhas DEC-01 a DEC-20 e responsabilidades. |
+| [Fila](queues.md) e [configuração](queue-config.json) | SQS Standard Billing → OS e DLQ. |
+| [OS interna](os-internal.openapi.yaml) | CT-02A/03 e lookup do cliente para Auth. |
+| [Billing](billing.openapi.yaml) | CT-07/09/10/11. |
+| [Inventory](inventory.openapi.yaml) | Disponibilidade, CT-05/08/08B e evidência de reversão. |
+| [API OS](os-api.openapi.yaml) | Início por item, prontidão global, cancelamento e retirada. |
+| [Composição](approval-composition.md) | Snapshot imutável e recuperação de aprovação fora de ordem. |
+| [Estados](state-transitions.md) e [REST](rest-operations.md) | Limites transacionais, resultado desconhecido e compensação. |
+| [Preparação da fase 3](phase3-handoff.md) | Checkout, dependências, validação e escopo de implementação. |
 
-## Validar
-
-Na raiz do repositório, o comando do CI permanece:
-
-```sh
-docker build -f scripts/contracts.Dockerfile -t os-contract-validation .
-docker run --rm --network none -v "$PWD:/workspace" os-contract-validation
-```
-
-PowerShell:
-
-```powershell
-docker build -f scripts/contracts.Dockerfile -t os-contract-validation .
-docker run --rm --network none --mount "type=bind,source=$((Get-Location).Path),target=/workspace" os-contract-validation
-```
-
-Alternativa sem Docker: preparar Python e instalar `scripts/requirements-contracts.lock`
-em ambiente isolado; então executar `python scripts/validate_contracts.py`.
-A instalação exige rede/cache; a validação bloqueia rede via audit hook e resolve
-referências de schemas localmente. OpenAPI só aceita `$ref` local. Resultado em
-`target/contract-validation.json`; o CI já publica esse arquivo.
-
-São verificados todos os schemas, exemplos positivos/negativos e os quatro OpenAPI.
-Fixtures HTTP são validadas contra o schema da operação/resposta real do OpenAPI,
-inclusive erros. EV-04 tem schema/fixture próprios, mas o dispatch ativo deve rejeitá-lo.
-Os testes do legado continuam rodando. Fixtures de cenários descrevem guardas de
-negócio, sem simular nem comprovar execução distribuída.
-
-## Mudanças frente ao pacote anterior
-
-Comandos SQS e eventos de Inventory foram removidos apenas da referência ativa.
-Não há reserva antecipada. Não há pagamento como pré-condição para execução.
-O envelope usa `eventId`, `eventType`, `schemaVersion`, `occurredAt`, `correlationId`
-e `payload`; Saga e identidades REST não são campos obrigatórios dos eventos.
-`START_PENDING` é estado técnico, não novo status comercial HTTP. Entrega exige CT-07.
-
-Aceite solicitado nesta fase: **pacote revisável**, com pendências rastreáveis.
-Aceites técnicos/comerciais ainda devem indicar autor, data e versão ou commit na matriz.
+Execute na raiz do repositório `python scripts/validate_contracts.py`, com as
+dependências de `scripts/requirements-contracts.lock`. O CI existente continua
+usando o mesmo ponto de entrada e execução offline. A suíte valida formatos,
+schemas e fixtures, incluindo exemplos negativos. Integração real e persistência
+da Saga entram nas fases seguintes.

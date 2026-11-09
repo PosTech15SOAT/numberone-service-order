@@ -101,6 +101,30 @@
       "type": "OrcamentoAprovado",
       "keyword": "required",
       "pointer": "/payload"
+    },
+    {
+      "file": "missing-composition-OrcamentoEnviado.json",
+      "type": "OrcamentoEnviado",
+      "keyword": "required",
+      "pointer": "/payload"
+    },
+    {
+      "file": "missing-composition-OrcamentoAprovado.json",
+      "type": "OrcamentoAprovado",
+      "keyword": "required",
+      "pointer": "/payload"
+    },
+    {
+      "file": "missing-composition-OrcamentoRejeitado.json",
+      "type": "OrcamentoRejeitado",
+      "keyword": "required",
+      "pointer": "/payload"
+    },
+    {
+      "file": "zero-approved-amount.json",
+      "type": "OrcamentoAprovado",
+      "keyword": "not",
+      "pointer": "/payload/approvedAmount"
     }
   ]
 }

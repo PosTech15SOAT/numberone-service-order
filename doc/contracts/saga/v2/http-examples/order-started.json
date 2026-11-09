@@ -1,5 +1,6 @@
 {
   "id": "00000000-0000-4000-8000-000000000001",
-  "status": "EM_EXECUCAO",
-  "sagaState": "IN_EXECUTION"
+  "status": "APROVADA",
+  "sagaState": "READY_FOR_EXECUTION",
+  "executionState": "READY_FOR_EXECUTION"
 }

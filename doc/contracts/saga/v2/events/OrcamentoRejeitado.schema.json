@@ -21,12 +21,16 @@
             },
             "budgetVersion": {
               "$ref": "https://contracts.numberone.invalid/saga/v2/common.schema.json#/$defs/revision"
+            },
+            "compositionVersion": {
+              "$ref": "https://contracts.numberone.invalid/saga/v2/common.schema.json#/$defs/revision"
             }
           },
           "required": [
             "serviceOrderId",
             "budgetId",
-            "budgetVersion"
+            "budgetVersion",
+            "compositionVersion"
           ],
           "additionalProperties": true
         }

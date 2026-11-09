@@ -23,13 +23,14 @@
               "$ref": "https://contracts.numberone.invalid/saga/v2/common.schema.json#/$defs/revision"
             },
             "approvedAmount": {
-              "$ref": "https://contracts.numberone.invalid/saga/v2/common.schema.json#/$defs/money"
+              "$ref": "https://contracts.numberone.invalid/saga/v2/common.schema.json#/$defs/positiveMoney"
             },
             "currency": {
               "type": "string",
-              "enum": [
-                "BRL"
-              ]
+              "const": "BRL"
+            },
+            "compositionVersion": {
+              "$ref": "https://contracts.numberone.invalid/saga/v2/common.schema.json#/$defs/revision"
             }
           },
           "required": [
@@ -37,7 +38,8 @@
             "budgetId",
             "budgetVersion",
             "approvedAmount",
-            "currency"
+            "currency",
+            "compositionVersion"
           ],
           "additionalProperties": true
         }

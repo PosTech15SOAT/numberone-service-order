@@ -4,5 +4,5 @@
   "status": "EM_EXECUCAO",
   "executionState": "IN_PROGRESS",
   "startOperationId": "00000008-0000-4000-8000-000000000001",
-  "valor": 150.0
+  "valorEstimadoUnitario": "150.00"
 }

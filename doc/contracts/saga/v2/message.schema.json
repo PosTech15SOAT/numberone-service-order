@@ -13,6 +13,9 @@
     },
     {
       "$ref": "https://contracts.numberone.invalid/saga/v2/events/PagamentoConfirmado.schema.json"
+    },
+    {
+      "$ref": "https://contracts.numberone.invalid/saga/v2/events/PagamentoAtualizado.schema.json"
     }
   ]
 }

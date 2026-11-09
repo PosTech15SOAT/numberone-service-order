@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Billing — CT-07 e CT-09 para OS
-  version: 2.0.0-review.1
+  version: 2.0.0-os-baseline.1
   description: Proposta revisável fase 1B. Sem implementação ou aceite externo; decisões em decisions.md.
 servers:
 - url: https://internal.example.invalid
@@ -77,10 +77,9 @@ paths:
   /internal/budgets/{budgetId}/cancellation:
     post:
       operationId: cancelBudget
-      description: 'CT-09: Idempotency-Key = operationId do cancelamento, distinta do consumption operationId e
-        compensationId do Inventory. Após estoque resolvido, validar revisão/elegibilidade/efeito financeiro. Persistir
-        resultado com efeito comercial. Timeout: repetir mesmo POST e conteúdo para recuperar. CANCELLED não afirma
-        REFUNDED. Elegibilidade de orçamento aprovado pendente Julio.'
+      description: 'CT-09: Idempotency-Key equals operationId. Cancel the current DRAFT/SENT/REJECTED/APPROVED budget
+        only during authorized pre-execution compensation, with no financial effects. Validate budgetVersion and
+        close the same per-OS context as CT-11. Retry returns the recorded result.'
       parameters:
       - name: budgetId
         in: path
@@ -157,12 +156,150 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CancellationRequest'
+  /internal/budgets/service-orders/{serviceOrderId}/current:
+    get:
+      operationId: getCurrentBudget
+      x-contract-id: CT-10
+      description: Authoritative current budget; 404 is an observation, never proof of a closed context.
+      parameters:
+      - name: serviceOrderId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Current revision and immutable composition reference
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentBudget'
+        '404':
+          description: BUDGET_NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '400':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '504':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /internal/budgets/service-orders/{serviceOrderId}/cancellation:
+    post:
+      operationId: cancelBudgetContext
+      x-contract-id: CT-11
+      description: Close the OS billing context atomically with creation/decision/payment. Persist even when no
+        budget exists. Check OS cancellationInProgress and pre-execution eligibility outside SQL, then revalidate
+        the local context. A closed context refuses delayed budget creation. Idempotency-Key equals operationId.
+        Replay returns the recorded result.
+      parameters:
+      - name: serviceOrderId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: CANCELLED with budget identity or NO_BUDGET with durable context closure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClosedBudgetContext'
+        '409':
+          description: BUDGET_NOT_ELIGIBLE, FINANCIAL_EFFECT_PENDING or IDEMPOTENCY_CONFLICT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '400':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '504':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContextCancellationRequest'
 components:
   securitySchemes:
     ServiceIdentity:
       type: http
       scheme: bearer
-      description: 'Proposta pendente Marcelo: credencial de serviço com audiência/permissões; nunca JWT de cliente.'
+      description: Opaque bearer token per caller/destination pair, private TLS, route scopes. No customer JWT on
+        service routes.
   schemas:
     Problem:
       type: object
@@ -279,3 +416,103 @@ components:
       - message
       - correlationId
       additionalProperties: true
+    CurrentBudget:
+      type: object
+      properties:
+        serviceOrderId: &id006
+          type: string
+          format: uuid
+        budgetId: *id006
+        budgetVersion: &id007
+          type: integer
+          minimum: 1
+        compositionVersion: *id007
+        status:
+          type: string
+          enum:
+          - DRAFT
+          - SENT
+          - APPROVED
+          - REJECTED
+          - CANCELLED
+        amount:
+          type: string
+          pattern: ^(0|[1-9][0-9]*)\.[0-9]{2}$
+          maxLength: 20
+        currency:
+          type: string
+          enum:
+          - BRL
+      required:
+      - serviceOrderId
+      - budgetId
+      - budgetVersion
+      - compositionVersion
+      - status
+      - amount
+      - currency
+      additionalProperties: true
+      oneOf:
+      - properties:
+          status:
+            enum:
+            - APPROVED
+          amount:
+            type: string
+            pattern: ^(?:0\.(?:0[1-9]|[1-9][0-9])|[1-9][0-9]*\.[0-9]{2})$
+            maxLength: 20
+      - properties:
+          status:
+            enum:
+            - DRAFT
+            - SENT
+            - REJECTED
+            - CANCELLED
+    ContextCancellationRequest:
+      type: object
+      properties:
+        operationId: *id006
+        reason:
+          type: string
+          enum:
+          - SERVICE_ORDER_CANCELLED
+      required:
+      - operationId
+      - reason
+      additionalProperties: true
+    ClosedBudgetContext:
+      type: object
+      properties:
+        operationId: *id006
+        serviceOrderId: *id006
+        result:
+          type: string
+          enum:
+          - CANCELLED
+          - NO_BUDGET
+        budgetId: *id006
+        budgetVersion: *id007
+      required:
+      - operationId
+      - serviceOrderId
+      - result
+      additionalProperties: true
+      oneOf:
+      - properties:
+          result:
+            enum:
+            - CANCELLED
+        required:
+        - budgetId
+        - budgetVersion
+      - properties:
+          result:
+            enum:
+            - NO_BUDGET
+        not:
+          anyOf:
+          - required:
+            - budgetId
+          - required:
+            - budgetVersion
+x-implementation-status: OS_IMPLEMENTATION_BASELINE

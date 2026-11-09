@@ -6,6 +6,7 @@
   "payload": {
     "serviceOrderId": "00000001-0000-4000-8000-000000000001",
     "budgetId": "00000002-0000-4000-8000-000000000001",
-    "budgetVersion": 1
+    "budgetVersion": 1,
+    "compositionVersion": 3
   }
 }

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://contracts.numberone.invalid/saga/v2/conditional/PagamentoAtualizado.schema.json",
+  "$id": "https://contracts.numberone.invalid/saga/v2/events/PagamentoAtualizado.schema.json",
   "allOf": [
     {
       "$ref": "https://contracts.numberone.invalid/saga/v2/envelope.schema.json"
@@ -37,5 +37,6 @@
         }
       }
     }
-  ]
+  ],
+  "description": "Integral refund confirmed by Billing; enabled in the OS implementation baseline."
 }
