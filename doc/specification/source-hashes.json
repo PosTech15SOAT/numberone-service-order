@@ -1,0 +1,18 @@
+[
+  {
+    "file": "README.md",
+    "sha256": "7ae382259214ef368f9596b84b71cd2aa2dcbd793af228f8dbecf853b18c5852"
+  },
+  {
+    "file": "contexto-organizacao.md",
+    "sha256": "ff29f99eabe1326d0f2992b69b4eb2dedd1f41d05b7e7d407dfbeb7a638a804f"
+  },
+  {
+    "file": "contrato-saga-v1-proposta.md",
+    "sha256": "d208b6a492756c2cb3926f7e6ec2925a55d0d0979f9bcf6de5e7824701b948a6"
+  },
+  {
+    "file": "fase-1-repositorio-contratos.md",
+    "sha256": "dfeecb29259d56879c949484900e85522a1cc695ce53a6fe075d187bb1dd4f4a"
+  }
+]

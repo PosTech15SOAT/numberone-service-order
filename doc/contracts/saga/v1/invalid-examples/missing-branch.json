@@ -1,0 +1,27 @@
+{
+  "messageId": "00000106-0000-4000-8000-000000000001",
+  "sagaId": "00000002-0000-4000-8000-000000000001",
+  "serviceOrderId": "00000003-0000-4000-8000-000000000001",
+  "attemptId": "00000005-0000-4000-8000-000000000001",
+  "operationId": "00000062-0000-4000-8000-000000000001",
+  "type": "ReserveMaterials",
+  "schemaVersion": 1,
+  "causationId": "00000104-0000-4000-8000-000000000001",
+  "occurredAt": "2026-10-31T15:00:00Z",
+  "producer": "os-service",
+  "correlationId": "demo-os-phase1",
+  "payload": {
+    "budgetRevision": 1,
+    "allocations": [
+      {
+        "serviceOrderItemId": "00000007-0000-4000-8000-000000000001",
+        "materials": [
+          {
+            "materialId": "00000008-0000-4000-8000-000000000001",
+            "quantity": 1
+          }
+        ]
+      }
+    ]
+  }
+}

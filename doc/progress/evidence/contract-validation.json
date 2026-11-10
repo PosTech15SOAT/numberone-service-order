@@ -1,0 +1,13 @@
+{
+  "scope": "schema-and-fixture-validation-only",
+  "approvedContract": false,
+  "schemaFiles": 24,
+  "messageTypes": 21,
+  "validFixtures": 31,
+  "invalidFixtures": 21,
+  "checks": 8,
+  "failures": 0,
+  "errors": 0,
+  "successful": true,
+  "remoteSchemaRetrieval": "denied"
+}

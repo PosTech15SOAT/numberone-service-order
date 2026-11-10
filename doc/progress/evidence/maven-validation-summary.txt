@@ -1,0 +1,8 @@
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.614 s -- in br.com.fiap.numberone.shared.infrastructure.correlation.CorrelationIdResolverTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 11.02 s -- in br.com.fiap.numberone.shared.api.HealthTransportIT
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0
+[INFO] All coverage checks have been met.
+[INFO] BUILD SUCCESS
+[INFO] Total time:  29.599 s
+[INFO] Finished at: 2026-10-31T21:43:20Z
