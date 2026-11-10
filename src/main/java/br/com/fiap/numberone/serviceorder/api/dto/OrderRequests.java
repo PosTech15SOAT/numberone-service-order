@@ -28,4 +28,5 @@ public final class OrderRequests {
     public record Material(
             @NotNull @JsonProperty("idMaterial") UUID materialId,
             @Min(1) @JsonProperty("quantidadePrevista") int plannedQuantity) { }
+    public record Completion(@PositiveOrZero @JsonProperty("quilometragem") Integer odometerKm) { }
 }

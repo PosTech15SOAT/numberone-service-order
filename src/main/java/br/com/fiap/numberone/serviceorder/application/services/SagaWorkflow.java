@@ -4,6 +4,7 @@ import br.com.fiap.numberone.serviceorder.application.gateways.*;
 import br.com.fiap.numberone.serviceorder.domain.entities.*;
 import br.com.fiap.numberone.serviceorder.domain.enums.ServiceOrderStatus;
 import br.com.fiap.numberone.serviceorder.domain.exceptions.*;
+import br.com.fiap.numberone.serviceorder.domain.valueobjects.MaintenanceSnapshot;
 import br.com.fiap.numberone.shared.application.gateways.BranchScope;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -23,10 +24,13 @@ public class SagaWorkflow {
     private final SagaParticipants participants;
     private final BranchScope branch;
     private final ObjectMapper json;
+    private final MaintenanceHistoryGateway history;
     private final TransactionTemplate tx;
     public SagaWorkflow(ServiceOrderGateway orders, JdbcTemplate jdbc, SagaParticipants participants,
-                        BranchScope branch, ObjectMapper json, PlatformTransactionManager manager) {
+                        BranchScope branch, ObjectMapper json, PlatformTransactionManager manager,
+                        MaintenanceHistoryGateway history) {
         this.orders = orders; this.jdbc = jdbc; this.participants = participants; this.branch = branch; this.json = json;
+        this.history = history;
         tx = new TransactionTemplate(manager); tx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         tx.setTimeout(30);
     }
@@ -227,14 +231,18 @@ public class SagaWorkflow {
         return tx.execute(t -> { var o = load(a.order()); var current = attempt(a.id());
             return new StartResult(o, a.item(), a.id(), current.state(), current.reason()); });
     }
-    public ServiceOrder complete(UUID id) {
+    public ServiceOrder complete(UUID id, Integer odometerKm) {
         return tx.execute(t -> {
             var o = load(id); var s = saga(id); executionGuard(o, s);
             if (!s.get("state").equals("IN_EXECUTION")) { throw new OrderRuleException("ORDER_NOT_IN_PROGRESS"); }
             if (jdbc.queryForObject("SELECT count(*) FROM saga_operation WHERE service_order_id=? AND state IN ('START_PENDING','AWAITING_RESULT')", Integer.class, id) != 0) {
                 throw new OrderRuleException("MATERIAL_CONSUMPTION_PENDING");
             }
-            o.complete(); var saved = orders.save(o); state(id, "WAITING_PAYMENT"); return saved;
+            o.complete();
+            var saved = orders.save(o);
+            state(id, "WAITING_PAYMENT");
+            history.append(MaintenanceSnapshot.capture(o, Instant.now(), odometerKm));
+            return saved;
         });
     }
     private record DeliverySnapshot(ServiceOrder order, long sagaVersion) { }

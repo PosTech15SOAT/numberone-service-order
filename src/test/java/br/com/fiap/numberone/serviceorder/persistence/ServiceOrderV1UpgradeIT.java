@@ -43,12 +43,13 @@ class ServiceOrderV1UpgradeIT extends PostgresSupport {
             var v1Checksum = jdbc.queryForObject("SELECT checksum FROM flyway_schema_history WHERE version='1'", Integer.class);
 
             var latest = Flyway.configure().dataSource(dataSource).defaultSchema(schema).load();
-            assertThat(latest.migrate().migrationsExecuted).isEqualTo(4);
+            assertThat(latest.migrate().migrationsExecuted).isEqualTo(5);
             latest.validate();
             assertThat(jdbc.queryForObject("SELECT checksum FROM flyway_schema_history WHERE version='1'", Integer.class))
                     .isEqualTo(v1Checksum);
             assertThat(jdbc.queryForList("SELECT version FROM flyway_schema_history WHERE version IS NOT NULL ORDER BY installed_rank",
-                    String.class)).containsExactly("1", "2", "3", "4", "5");
+                    String.class)).containsExactly("1", "2", "3", "4", "5", "6");
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM maintenance_history_outbox", Integer.class)).isZero();
             assertThat(jdbc.queryForObject("SELECT state FROM service_order_saga WHERE service_order_id=?", String.class, order))
                     .isEqualTo("MANUAL_INTERVENTION");
             assertThat(jdbc.queryForList("SELECT * FROM material_previsto ORDER BY id")).isEqualTo(prior);

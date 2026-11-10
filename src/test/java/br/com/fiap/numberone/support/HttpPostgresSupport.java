@@ -24,7 +24,7 @@ public abstract class HttpPostgresSupport extends PostgresSupport {
     protected static final String MATERIAL = "80000000-0000-4000-8000-000000000001";
 
     @BeforeEach void cleanEphemeralTestDatabase() {
-        jdbc.execute("TRUNCATE service_order_payment, saga_operation, inbox_event, service_order_saga, material_movement_reference, material_previsto, item_ordem_servico, ordem_servico, "
+        jdbc.execute("TRUNCATE maintenance_history_outbox, service_order_payment, saga_operation, inbox_event, service_order_saga, material_movement_reference, material_previsto, item_ordem_servico, ordem_servico, "
                 + "service_order_composition, veiculo, cliente, servico_automotivo");
     }
 

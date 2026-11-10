@@ -29,9 +29,11 @@ class ServiceOrderPersistenceIT extends HttpPostgresSupport {
     @Test void flywayCreatesOnlyOwnedTablesAndNoExternalForeignKeys() {
         var tables = jdbc.queryForList("SELECT tablename FROM pg_tables WHERE schemaname=current_schema()", String.class);
         assertThat(tables).containsExactlyInAnyOrder("flyway_schema_history", "cliente", "veiculo", "servico_automotivo",
-                "ordem_servico", "item_ordem_servico", "material_previsto", "material_movement_reference", "service_order_composition", "service_order_saga", "inbox_event", "saga_operation", "service_order_payment");
+                "ordem_servico", "item_ordem_servico", "material_previsto", "material_movement_reference",
+                "service_order_composition", "service_order_saga", "inbox_event", "saga_operation",
+                "service_order_payment", "maintenance_history_outbox");
         assertThat(jdbc.queryForList("SELECT version FROM flyway_schema_history WHERE success=true AND version IS NOT NULL ORDER BY installed_rank",
-                String.class)).containsExactly("1", "2", "3", "4", "5");
+                String.class)).containsExactly("1", "2", "3", "4", "5", "6");
         var foreignTables = jdbc.queryForList("SELECT DISTINCT ccu.table_name FROM information_schema.table_constraints tc JOIN information_schema.constraint_column_usage ccu ON tc.constraint_name=ccu.constraint_name AND tc.constraint_schema=ccu.constraint_schema WHERE tc.constraint_type='FOREIGN KEY' AND tc.table_schema=current_schema()", String.class);
         assertThat(foreignTables).containsOnly("cliente", "veiculo", "servico_automotivo", "ordem_servico",
                 "item_ordem_servico", "material_previsto", "service_order_composition", "saga_operation");

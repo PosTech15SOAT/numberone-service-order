@@ -24,9 +24,11 @@ import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -44,9 +46,14 @@ class InventoryI1IT {
     private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
     private static final String CONSUMPTIONS = "/internal/inventory/consumptions";
     private static final String OPERATIONS = "/internal/inventory/operations/";
+    private static final String SETTLEMENTS = "/internal/payments/service-orders/";
+    private static final String BILLING_TOKEN = "i1-test-os-to-billing";
     private static final AtomicReference<String> DROP_OPERATION = new AtomicReference<>();
     private static final ConcurrentLinkedQueue<Forwarded> FORWARDED = new ConcurrentLinkedQueue<>();
+    private static final AtomicBoolean SETTLED = new AtomicBoolean();
+    private static final ConcurrentLinkedQueue<SettlementCall> SETTLEMENT_CALLS = new ConcurrentLinkedQueue<>();
     private static HttpServer relay;
+    private static HttpServer billing;
 
     @Autowired ObjectMapper json;
     @Autowired BillingInboxHandler billingInbox;
@@ -57,15 +64,22 @@ class InventoryI1IT {
             "X-Authenticated-Permissions", "", "X-Correlation-Id", correlation);
 
     @DynamicPropertySource
-    static void inventory(DynamicPropertyRegistry registry) throws IOException {
+    static void participants(DynamicPropertyRegistry registry) throws IOException {
         relay = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         relay.createContext("/internal/inventory/", InventoryI1IT::forward);
         relay.start();
         registry.add("app.saga.inventory-url", () -> "http://127.0.0.1:" + relay.getAddress().getPort());
+
+        billing = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        billing.createContext(SETTLEMENTS, InventoryI1IT::settlement);
+        billing.start();
+        registry.add("app.saga.billing-url", () -> "http://127.0.0.1:" + billing.getAddress().getPort());
+        registry.add("app.saga.billing-token", () -> BILLING_TOKEN);
     }
 
-    @AfterAll static void stopRelay() {
+    @AfterAll static void stopParticipants() {
         if (relay != null) { relay.stop(0); }
+        if (billing != null) { billing.stop(0); }
     }
 
     private static void forward(HttpExchange exchange) throws IOException {
@@ -98,7 +112,29 @@ class InventoryI1IT {
         }
     }
 
-    @Test void linksRealMaterialStartsRetriesAfterReplenishmentAndRecoversLostResponse() throws Exception {
+    private static void settlement(HttpExchange exchange) throws IOException {
+        try (exchange) {
+            String path = exchange.getRequestURI().getPath();
+            if (!"GET".equals(exchange.getRequestMethod()) || !path.endsWith("/settlement")
+                    || !("Bearer " + BILLING_TOKEN).equals(exchange.getRequestHeaders().getFirst("Authorization"))) {
+                exchange.sendResponseHeaders(400, -1);
+                return;
+            }
+            String order = path.substring(SETTLEMENTS.length(), path.length() - "/settlement".length());
+            boolean settled = SETTLED.get();
+            String fixture = settled ? "settled.json" : "unsettled.json";
+            var mapper = new ObjectMapper();
+            var body = (ObjectNode) mapper.readTree(Files.readString(Path.of("doc/contracts/saga/v2/http-examples", fixture)));
+            body.put("serviceOrderId", order).put("verifiedAt", Instant.now().toString());
+            byte[] response = mapper.writeValueAsBytes(body);
+            SETTLEMENT_CALLS.add(new SettlementCall(path, exchange.getRequestHeaders().getFirst("X-Correlation-Id"), settled));
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, response.length);
+            exchange.getResponseBody().write(response);
+        }
+    }
+
+    @Test void executesOrderWithRealInventoryAndRequiresSettlementForDelivery() throws Exception {
         var material = createMaterial("Peca real I1", true);
         var missing = createMaterial("Peca a repor I1", true);
         var inactive = createMaterial("Peca inativa I1", false);
@@ -173,6 +209,36 @@ class InventoryI1IT {
         assertThat(balance(material)).isZero();
         System.out.printf("I1 OS: resposta CT-05 perdida %s, CT-08 recuperou movimentos %s, um unico POST%n",
                 lostOperation, movements);
+        verifyDeliveryGuard(order, orderPath, first, shortage, lost);
+    }
+
+    private void verifyDeliveryGuard(String order, String orderPath, String... items) throws Exception {
+        for (String item : items) {
+            call(200, "PATCH", "/api/admin/itens-ordem-servico/" + item + "/concluir", null);
+        }
+        var completed = call(200, "PATCH", orderPath + "/concluir", null);
+        assertThat(field(completed, "status")).isEqualTo("FINALIZADA");
+        assertThat(field(completed, "sagaState")).isEqualTo("WAITING_PAYMENT");
+        assertThat(completed.path("dataHoraEntrega").isNull()).isTrue();
+        assertThat(SETTLEMENT_CALLS).isEmpty();
+
+        var blocked = call(409, "PATCH", orderPath + "/entregar", null);
+        assertThat(field(blocked, "code")).isEqualTo("NOT_SETTLED");
+        var stillCompleted = call(200, "GET", orderPath, null);
+        assertThat(field(stillCompleted, "status")).isEqualTo("FINALIZADA");
+        assertThat(field(stillCompleted, "sagaState")).isEqualTo("WAITING_PAYMENT");
+        assertThat(stillCompleted.path("dataHoraEntrega").isNull()).isTrue();
+        String settlementPath = SETTLEMENTS + order + "/settlement";
+        assertThat(SETTLEMENT_CALLS).containsExactly(new SettlementCall(settlementPath, correlation, false));
+
+        SETTLED.set(true);
+        var delivered = call(200, "PATCH", orderPath + "/entregar", null);
+        var persisted = call(200, "GET", orderPath, null);
+        assertThat(field(persisted, "status")).isEqualTo("ENTREGUE");
+        assertThat(field(persisted, "sagaState")).isEqualTo("COMPLETED");
+        assertThat(field(persisted, "dataHoraEntrega")).isNotBlank().isEqualTo(field(delivered, "dataHoraEntrega"));
+        assertThat(SETTLEMENT_CALLS).containsExactly(new SettlementCall(settlementPath, correlation, false),
+                new SettlementCall(settlementPath, correlation, true));
     }
 
     private void approve(String order, int composition) throws IOException {
@@ -260,4 +326,5 @@ class InventoryI1IT {
     private static String field(JsonNode body, String name) { return body.path(name).asString(); }
 
     private record Forwarded(String method, String path, String key, String correlation, int status) { }
+    private record SettlementCall(String path, String correlation, boolean settled) { }
 }

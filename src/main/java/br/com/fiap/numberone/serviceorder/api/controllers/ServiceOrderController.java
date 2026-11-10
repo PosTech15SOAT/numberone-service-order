@@ -51,7 +51,11 @@ public class ServiceOrderController {
                 o.countItems(IN_PROGRESS), o.countItems(CANCELLED), o.countItems(WAITING_FOR_PARTS_AND_SUPPLIES),
                 o.averageExecutionMinutes(), o.getItems().stream().filter(i -> i.isStartPending()).count());
     }
-    @PatchMapping("/{id}/concluir") public OrderResponses.Order complete(@PathVariable UUID id) { saga.complete(id); return mapper.toResponse(service.get(id)); }
+    @PatchMapping("/{id}/concluir")
+    public OrderResponses.Order complete(@PathVariable UUID id, @Valid @RequestBody(required = false) OrderRequests.Completion completion) {
+        saga.complete(id, completion == null ? null : completion.odometerKm());
+        return mapper.toResponse(service.get(id));
+    }
     @PatchMapping("/{id}/entregar") public OrderResponses.Order deliver(@PathVariable UUID id) {
         saga.deliver(id, br.com.fiap.numberone.shared.infrastructure.correlation.SagaCorrelation.current()); return mapper.toResponse(service.get(id));
     }

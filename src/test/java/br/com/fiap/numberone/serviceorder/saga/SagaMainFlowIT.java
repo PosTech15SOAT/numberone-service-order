@@ -2,17 +2,28 @@ package br.com.fiap.numberone.serviceorder.saga;
 
 import br.com.fiap.numberone.support.HttpPostgresSupport;
 import br.com.fiap.numberone.serviceorder.infrastructure.messaging.BillingInboxHandler;
+import br.com.fiap.numberone.serviceorder.infrastructure.history.MaintenanceHistoryWorker;
 import com.sun.net.httpserver.HttpServer;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.convention.TestBean;
+import org.testcontainers.containers.GenericContainer;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.dynamodb.model.*;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 import java.net.*;
 import java.net.http.*;
 import java.nio.file.*;
 import java.time.Instant;
+import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -20,6 +31,35 @@ import static org.assertj.core.api.Assertions.*;
 
 /** PostgreSQL + real HTTP OS/CT-05/07/10. Billing and Inventory are explicitly simulated. */
 class SagaMainFlowIT extends HttpPostgresSupport {
+    private static final String HISTORY_TABLE = "test_vehicle_maintenance_history";
+    private static final GenericContainer<?> DYNAMO = startDynamo();
+    @TestBean(name = "historyDynamoClient", methodName = "fixtureDynamo", enforceOverride = true)
+    private DynamoDbClient dynamo;
+    @Autowired MaintenanceHistoryWorker historyWorker;
+    @Autowired MeterRegistry metrics;
+
+    private static GenericContainer<?> startDynamo() {
+        var container = new GenericContainer<>("amazon/dynamodb-local:2.6.1")
+                .withExposedPorts(8000).withCommand("-jar", "DynamoDBLocal.jar", "-inMemory", "-sharedDb");
+        container.start();
+        return container;
+    }
+
+    static DynamoDbClient fixtureDynamo() {
+        var client = DynamoDbClient.builder().region(Region.US_EAST_1)
+                .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create("local", "local")))
+                .endpointOverride(URI.create("http://" + DYNAMO.getHost() + ":" + DYNAMO.getMappedPort(8000)))
+                .overrideConfiguration(config -> config.apiCallTimeout(Duration.ofSeconds(4))
+                        .apiCallAttemptTimeout(Duration.ofSeconds(2)))
+                .build();
+        client.createTable(request -> request.tableName(HISTORY_TABLE).billingMode(BillingMode.PAY_PER_REQUEST)
+                .attributeDefinitions(def -> def.attributeName("vehicleId").attributeType(ScalarAttributeType.S),
+                        def -> def.attributeName("historyKey").attributeType(ScalarAttributeType.S))
+                .keySchema(key -> key.attributeName("vehicleId").keyType(KeyType.HASH),
+                        key -> key.attributeName("historyKey").keyType(KeyType.RANGE)));
+        return client;
+    }
+
     private static final HttpServer PARTICIPANTS = server();
     private static volatile java.util.function.Function<com.sun.net.httpserver.HttpExchange, Response> responder;
     private record Response(int status, String body) { }
@@ -43,6 +83,9 @@ class SagaMainFlowIT extends HttpPostgresSupport {
         p.add("app.saga.billing-token", () -> "fixture-os-billing");
         p.add("app.saga.inventory-token", () -> "fixture-os-inventory");
         p.add("app.saga.billing-inbound-token", () -> "fixture-billing-os");
+        p.add("app.history.enabled", () -> true);
+        p.add("app.history.worker-enabled", () -> false);
+        p.add("app.history.table", () -> HISTORY_TABLE);
     }
     @Autowired BillingInboxHandler inbox;
     @Autowired br.com.fiap.numberone.serviceorder.application.services.SagaRecoveryWorker recovery;
@@ -144,7 +187,13 @@ class SagaMainFlowIT extends HttpPostgresSupport {
     private Reply action(UUID order, String action) throws Exception { return call("PATCH", "/api/admin/ordens-servico/" + order + "/" + action, null); }
     private void completeItem(UUID item) throws Exception { expect(200, call("PATCH", "/api/admin/itens-ordem-servico/" + item + "/concluir", null)); }
     private void complete(Fixture f) throws Exception {
-        approve(f.order()); expect(200, start(f.item(), null)); completeItem(f.item()); expect(200, action(f.order(), "concluir"));
+        complete(f.order(), f.item());
+    }
+    private void complete(UUID order, UUID item) throws Exception {
+        approve(order);
+        expect(200, start(item, null));
+        completeItem(item);
+        expect(200, action(order, "concluir"));
     }
     private JsonNode internal(UUID order, String suffix, int status) throws Exception {
         var req = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/internal/service-orders/" + order + suffix))
@@ -186,6 +235,215 @@ class SagaMainFlowIT extends HttpPostgresSupport {
         assertThat(delivered.get("status").asString()).isEqualTo("ENTREGUE"); assertThat(saga(f.order())).isEqualTo("COMPLETED");
         assertThat(settlements.get()).isEqualTo(before + 1);
         expect(200, action(f.order(), "entregar")); assertThat(settlements.get()).isEqualTo(before + 1);
+    }
+
+    @Test void dynamoOutageAllowsCompletionPaymentAndDeliveryThenProjectsTheFrozenRepair() throws Exception {
+        var f = diagnosisFixture();
+        var allocation = addMaterial(f.item());
+        approve(f.order());
+        expect(200, start(f.item(), null));
+        completeItem(f.item());
+        String snapshot;
+        double retriesBefore = metrics.counter("os.history.retries").count();
+        var docker = DYNAMO.getDockerClient();
+        docker.pauseContainerCmd(DYNAMO.getContainerId()).exec();
+        try {
+            var completePath = "/api/admin/ordens-servico/" + f.order() + "/concluir";
+            expect(400, call("PATCH", completePath, Map.of("quilometragem", -1)));
+            expect(200, call("PATCH", completePath, Map.of("quilometragem", 63542)));
+            assertThat(internal(f.order(), "", 200).path("status").asString()).isEqualTo("COMPLETED");
+            assertThat(saga(f.order())).isEqualTo("WAITING_PAYMENT");
+            snapshot = (String) historyRow(f.order()).get("snapshot");
+            historyWorker.tick();
+            assertThat(historyRow(f.order())).containsEntry("state", "PENDING").containsEntry("attempts", 1)
+                    .containsEntry("last_error", "DYNAMODB_UNAVAILABLE").containsEntry("lease_owner", null);
+            assertThat(metrics.counter("os.history.retries").count()).isEqualTo(retriesBefore + 1);
+            assertThat(metrics.get("os.history.pending").gauge().value()).isEqualTo(1);
+            assertThat(metrics.get("os.history.oldest.pending.seconds").gauge().value()).isPositive();
+            expect(503, call("GET", historyPath(f.vehicle()), null, customer(f.customer())));
+            expect(403, call("GET", historyPath(f.vehicle()), null, customer(UUID.randomUUID())));
+            expect(409, action(f.order(), "entregar"));
+            settlementMode = "PAID"; // Simulates the employee collecting payment in Billing.
+            inbox.handle(payment(f.order(), UUID.randomUUID(), 1, false));
+            assertThat(saga(f.order())).isEqualTo("READY_FOR_DELIVERY");
+            assertThat(expect(200, action(f.order(), "entregar")).path("status").asString()).isEqualTo("ENTREGUE");
+            assertThat(historyRow(f.order())).containsEntry("state", "PENDING").containsEntry("snapshot", snapshot);
+        } finally {
+            docker.unpauseContainerCmd(DYNAMO.getContainerId()).exec();
+        }
+        makeHistoryDue(f.order());
+        historyWorker.tick();
+        assertThat(historyRow(f.order())).containsEntry("state", "PROJECTED").containsEntry("attempts", 2)
+                .containsEntry("snapshot", snapshot);
+        var page = expect(200, call("GET", historyPath(f.vehicle()), null, customer(f.customer())));
+        assertThat(page.path("entries").size()).isEqualTo(1);
+        var entry = page.path("entries").get(0);
+        assertThat(entry).isEqualTo(json.readTree(snapshot));
+        assertThat(entry.path("serviceOrderId").asString()).isEqualTo(f.order().toString());
+        assertThat(entry.path("odometerKm").asInt()).isEqualTo(63542);
+        var consumed = entry.path("services").get(0).path("materials").get(0);
+        assertThat(consumed.path("allocationId").asString()).isEqualTo(allocation.toString());
+        assertThat(consumed.path("materialId").asString()).isEqualTo(MATERIAL);
+        assertThat(consumed.path("quantity").asInt()).isEqualTo(1);
+        assertThat(consumed.path("movementIds").size()).isEqualTo(1);
+    }
+
+    @Test void completionCommitRollbackLeavesNoHistoryAndSnapshotCannotBeChangedOrDeleted() throws Exception {
+        var f = diagnosisFixture();
+        approve(f.order());
+        expect(200, start(f.item(), null));
+        completeItem(f.item());
+        jdbc.execute("""
+                CREATE FUNCTION phase6_fail_completion() RETURNS trigger LANGUAGE plpgsql AS $$
+                BEGIN RAISE EXCEPTION USING ERRCODE='23514', MESSAGE='TEST_COMMIT_FAILURE'; END $$
+                """);
+        jdbc.execute("""
+                CREATE CONSTRAINT TRIGGER phase6_fail_completion_at_commit AFTER INSERT ON maintenance_history_outbox
+                DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION phase6_fail_completion()
+                """);
+        try {
+            expect(409, action(f.order(), "concluir"));
+            assertThat(internal(f.order(), "", 200).path("status").asString()).isEqualTo("IN_PROGRESS");
+            assertThat(saga(f.order())).isEqualTo("IN_EXECUTION");
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM maintenance_history_outbox", Integer.class)).isZero();
+        } finally {
+            jdbc.execute("DROP TRIGGER phase6_fail_completion_at_commit ON maintenance_history_outbox");
+            jdbc.execute("DROP FUNCTION phase6_fail_completion()");
+        }
+        expect(200, action(f.order(), "concluir"));
+        expect(409, action(f.order(), "concluir"));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM maintenance_history_outbox", Integer.class)).isEqualTo(1);
+        assertThatThrownBy(() -> jdbc.update("UPDATE maintenance_history_outbox SET snapshot='{}'"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbc.update("DELETE FROM maintenance_history_outbox"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test void retryAfterPutAndFailedSqlAcknowledgementKeepsExactlyOneDocument() throws Exception {
+        var f = diagnosisFixture();
+        complete(f);
+        var frozen = historyRow(f.order());
+        jdbc.execute("""
+                CREATE FUNCTION phase6_fail_ack() RETURNS trigger LANGUAGE plpgsql AS $$
+                BEGIN RAISE EXCEPTION USING ERRCODE='23514', MESSAGE='TEST_ACK_FAILURE'; END $$
+                """);
+        jdbc.execute("""
+                CREATE TRIGGER phase6_fail_ack BEFORE UPDATE ON maintenance_history_outbox
+                FOR EACH ROW WHEN (NEW.state='PROJECTED') EXECUTE FUNCTION phase6_fail_ack()
+                """);
+        try {
+            assertThatThrownBy(historyWorker::tick).isInstanceOf(DataIntegrityViolationException.class);
+            assertThat(historyRow(f.order())).containsEntry("state", "PENDING").containsEntry("attempts", 1);
+            assertThat(historyRow(f.order()).get("lease_owner")).isNotNull();
+            assertThat(dynamoItem(f, frozen).get("snapshot").s()).isEqualTo(frozen.get("snapshot"));
+            assertThat(requeueHistory(f.order())).containsEntry("in_flight", 1L).containsEntry("requeued", 0L);
+            historyWorker.tick();
+            assertThat(historyRow(f.order())).containsEntry("attempts", 1);
+        } finally {
+            jdbc.execute("DROP TRIGGER phase6_fail_ack ON maintenance_history_outbox");
+            jdbc.execute("DROP FUNCTION phase6_fail_ack()");
+        }
+        var replayed = metrics.counter("os.history.projected", "result", "REPLAYED");
+        double before = replayed.count();
+        makeHistoryDue(f.order());
+        historyWorker.tick();
+        assertThat(replayed.count()).isEqualTo(before + 1);
+        assertThat(historyRow(f.order())).containsEntry("state", "PROJECTED").containsEntry("attempts", 2)
+                .containsEntry("history_key", frozen.get("history_key")).containsEntry("snapshot", frozen.get("snapshot"));
+        assertThat(expect(200, call("GET", historyPath(f.vehicle()), null)).path("entries").size()).isEqualTo(1);
+    }
+
+    @Test void sameKeyWithDifferentContentIsVisibleAndNeverOverwritesTheExistingDocument() throws Exception {
+        var f = diagnosisFixture();
+        complete(f);
+        var frozen = historyRow(f.order());
+        historyWorker.tick();
+        var conflicting = new HashMap<>(dynamoItem(f, frozen));
+        var changed = (ObjectNode) json.readTree(conflicting.get("snapshot").s());
+        changed.put("odometerKm", 99);
+        conflicting.put("snapshot", AttributeValue.fromS(changed.toString()));
+        dynamo.putItem(request -> request.tableName(HISTORY_TABLE).item(conflicting));
+        assertThat(requeueHistory(f.order())).containsEntry("matched", 1L).containsEntry("requeued", 1L);
+        assertThat(requeueHistory(f.order())).containsEntry("already_due", 1L).containsEntry("requeued", 0L);
+        historyWorker.tick();
+        assertThat(historyRow(f.order())).containsEntry("state", "COLLISION").containsEntry("attempts", 2)
+                .containsEntry("last_error", "CONTENT_MISMATCH").containsEntry("snapshot", frozen.get("snapshot"));
+        assertThat(dynamoItem(f, frozen)).isEqualTo(conflicting);
+        assertThat(metrics.get("os.history.collisions").gauge().value()).isEqualTo(1);
+        historyWorker.tick();
+        assertThat(historyRow(f.order())).containsEntry("attempts", 2);
+    }
+
+    @Test void historyQueryPagesByVehicleAndChecksOwnerPermissionAndBranchOnEveryRequest() throws Exception {
+        var f = diagnosisFixture();
+        complete(f);
+        var secondOrder = createOrder(f.customer(), f.vehicle());
+        diagnose(secondOrder);
+        complete(secondOrder, addItem(secondOrder, f.service()));
+        historyWorker.tick();
+        historyWorker.tick();
+        var anotherCustomer = createCustomer("11144477735");
+        var anotherVehicle = id(expect(201, call("POST", "/api/admin/veiculos", vehicleBody(anotherCustomer, "TST1A24"))));
+        createOrder(anotherCustomer, anotherVehicle);
+        var otherBranch = UUID.randomUUID();
+        var branchOnlyVehicle = id(expect(201, call("POST", "/api/admin/veiculos", vehicleBody(f.customer(), "TST1A25"))));
+        var otherBranchOrder = createOrder(f.customer(), branchOnlyVehicle);
+        jdbc.update("UPDATE ordem_servico SET branch_id=? WHERE id=?", otherBranch, otherBranchOrder);
+        expect(404, call("GET", historyPath(branchOnlyVehicle), null));
+        expect(404, call("GET", historyPath(branchOnlyVehicle), null, customer(f.customer())));
+
+        var foreignItem = new HashMap<>(dynamoItem(f, historyRow(f.order())));
+        foreignItem.put("branchId", AttributeValue.fromS(otherBranch.toString()));
+        foreignItem.put("historyKey", AttributeValue.fromS("2099-01-01T00:00:00.000000Z#" + otherBranchOrder + "#1"));
+        dynamo.putItem(request -> request.tableName(HISTORY_TABLE).item(foreignItem));
+
+        String path = historyPath(f.vehicle());
+        var owner = customer(f.customer());
+        var newest = expect(200, call("GET", path + "?limit=1", null, owner));
+        assertThat(newest.path("entries").get(0).path("serviceOrderId").asString()).isEqualTo(secondOrder.toString());
+        String cursor = newest.path("nextCursor").asString();
+        assertThat(new String(Base64.getUrlDecoder().decode(cursor), java.nio.charset.StandardCharsets.US_ASCII))
+                .contains(secondOrder.toString()).doesNotContain(otherBranchOrder.toString());
+        var oldest = expect(200, call("GET", path + "?limit=1&cursor=" + cursor, null, owner));
+        assertThat(oldest.path("entries").get(0).path("serviceOrderId").asString()).isEqualTo(f.order().toString());
+        assertThat(expect(200, call("GET", path, null)).path("entries").size()).isEqualTo(2);
+        expect(403, call("GET", path + "?cursor=" + cursor, null, customer(anotherCustomer)));
+        expect(400, call("GET", historyPath(anotherVehicle) + "?cursor=" + cursor, null, customer(anotherCustomer)));
+        assertThat(expect(200, call("GET", historyPath(anotherVehicle), null, customer(anotherCustomer))).path("entries").size()).isZero();
+        var noPermission = new HashMap<>(owner);
+        noPermission.put("X-Authenticated-Permissions", "");
+        expect(403, call("GET", path, null, noPermission));
+        expect(401, call("GET", path, null, Map.of()));
+        expect(400, call("GET", path + "?limit=51", null, owner));
+        expect(400, call("GET", path + "?cursor=invalid", null, owner));
+    }
+
+    private Map<String, Object> historyRow(UUID order) {
+        return jdbc.queryForMap("SELECT * FROM maintenance_history_outbox WHERE service_order_id=?", order);
+    }
+
+    private Map<String, Object> requeueHistory(UUID order) throws Exception {
+        var sql = Files.readString(Path.of("scripts/reprocess-maintenance-history.sql"))
+                .replace("\\set ON_ERROR_STOP on", "").replace(":'order_id'", "?").replace(":'history_version'", "?");
+        return jdbc.queryForMap(sql, order, 1);
+    }
+
+    private void makeHistoryDue(UUID order) {
+        jdbc.update("""
+                UPDATE maintenance_history_outbox SET next_attempt_at=CURRENT_TIMESTAMP,
+                    lease_until=CASE WHEN lease_owner IS NOT NULL THEN CURRENT_TIMESTAMP END
+                WHERE service_order_id=?
+                """, order);
+    }
+
+    private Map<String, AttributeValue> dynamoItem(Fixture f, Map<String, Object> row) {
+        return dynamo.getItem(request -> request.tableName(HISTORY_TABLE).consistentRead(true).key(Map.of(
+                "vehicleId", AttributeValue.fromS(f.vehicle().toString()),
+                "historyKey", AttributeValue.fromS((String) row.get("history_key"))))).item();
+    }
+
+    private static String historyPath(UUID vehicle) {
+        return "/api/public/veiculos/" + vehicle + "/historico-manutencoes";
     }
     @Test void lostConsumptionResponseRemainsPendingAndRepeatRecoversSameOperationWithoutSecondDebit() throws Exception {
         var f = diagnosisFixture(); addMaterial(f.item()); approve(f.order()); stockMode = "LOST_RESPONSE";

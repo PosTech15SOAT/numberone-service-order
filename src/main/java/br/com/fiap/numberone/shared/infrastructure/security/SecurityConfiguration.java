@@ -30,7 +30,8 @@ public class SecurityConfiguration {
                 .authorizeHttpRequests(a -> a
                         .requestMatchers("/actuator/health", "/actuator/health/liveness",
                                 "/actuator/health/readiness", "/api/public/health").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/public/ordens-servico/*/acompanhamento")
+                        .requestMatchers(HttpMethod.GET, "/api/public/ordens-servico/*/acompanhamento",
+                                "/api/public/veiculos/*/historico-manutencoes")
                             .hasAnyAuthority("ROLE_ADMIN", "SERVICE_ORDER_TRACK_OWN")
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().denyAll())
