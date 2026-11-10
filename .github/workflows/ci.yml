@@ -1,0 +1,45 @@
+name: CI
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop, feature/fase-1a-base]
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test-and-build:
+    name: Required validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - name: Build, technical rules and real HTTP tests
+        run: ./mvnw --batch-mode clean verify
+      - name: Build container image
+        run: docker build --tag numberone-service-order:${{ github.sha }} .
+      - uses: azure/setup-kubectl@v4
+        with:
+          version: v1.36.0
+      - name: Validate manifests
+        run: |
+          mkdir -p rendered-manifests
+          kubectl kustomize k8s/base > rendered-manifests/os.yaml
+          docker run --rm -v "$PWD:/workspace:ro" ghcr.io/yannh/kubeconform:v0.8.0 \
+            -strict -summary -kubernetes-version 1.36.0 /workspace/rendered-manifests
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: validation-reports
+          path: |
+            target/surefire-reports
+            target/failsafe-reports
+            target/site/jacoco
+            rendered-manifests

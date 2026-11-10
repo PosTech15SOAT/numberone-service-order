@@ -1,0 +1,15 @@
+target/
+.idea/
+.vscode/
+*.iml
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+*.pyc
+.m2/
+rendered-manifests/
+*.log
+*.pem
+*.key
