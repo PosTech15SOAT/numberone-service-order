@@ -7,11 +7,18 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
+import tools.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.util.UUID;
 
 @Configuration
 public class MaterialReferenceConfiguration {
+    @Bean
+    @ConditionalOnProperty(name = "app.material-reference.provider", havingValue = "http")
+    MaterialReferenceGateway httpMaterialReference(HttpSagaParticipants participants, ObjectMapper json) {
+        return new HttpMaterialReferenceGateway(participants, json);
+    }
+
     @Bean
     @ConditionalOnProperty(name = "app.material-reference.provider", havingValue = "unavailable", matchIfMissing = true)
     MaterialReferenceGateway unavailableMaterialReference() {

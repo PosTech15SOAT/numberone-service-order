@@ -9,6 +9,60 @@ servers:
 security:
 - ServiceIdentity: []
 paths:
+  /internal/inventory/items/{inventoryItemId}:
+    get:
+      operationId: getInventoryItemReference
+      description: Referência de catálogo para o diagnóstico da OS.
+      parameters:
+      - name: inventoryItemId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Identificação, descrição, preço de referência e estado do item.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaterialReference'
+        '400':
+          description: INVALID_REQUEST
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: UNAUTHENTICATED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: FORBIDDEN
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: RESOURCE_NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: DEPENDENCY_UNAVAILABLE
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
   /internal/inventory/consumptions:
     post:
       operationId: consumeMaterials
@@ -294,6 +348,24 @@ components:
       description: Opaque bearer token per caller/destination pair, private TLS, route scopes. No customer JWT on
         service routes.
   schemas:
+    MaterialReference:
+      type: object
+      required: [id, description, referenceUnitPrice, active]
+      properties:
+        id:
+          type: string
+          format: uuid
+        description:
+          type: string
+          minLength: 1
+          maxLength: 255
+        referenceUnitPrice:
+          type: string
+          pattern: '^[0-9]{1,8}(\.[0-9]{1,2})?$'
+          example: '200.00'
+          description: Preço decimal positivo por unidade.
+        active:
+          type: boolean
     Problem:
       type: object
       properties:

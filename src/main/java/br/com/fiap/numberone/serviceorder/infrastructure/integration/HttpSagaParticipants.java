@@ -35,6 +35,10 @@ public class HttpSagaParticipants implements SagaParticipants {
         } catch (InterruptedException ex) { Thread.currentThread().interrupt(); throw new SagaDependencyException(); }
         catch (Exception ex) { throw new SagaDependencyException(); }
     }
+    HttpResponse<String> inventoryGet(String path, UUID correlation) {
+        return exchange(inventory, inventoryToken, path, null, null, correlation);
+    }
+
     public ConsumptionResult consume(Consumption request, UUID correlation) {
         var reply = exchange(inventory, inventoryToken, "/internal/inventory/consumptions", request, request.operationId(), correlation);
         try {
