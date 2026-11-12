@@ -48,7 +48,7 @@ class SagaCompensationIT extends HttpPostgresSupport {
     @Autowired SagaCompensation compensation;
     @Autowired SagaRecoveryWorker worker;
     @Autowired BillingInboxHandler inbox;
-    @Autowired SagaParticipants participants;
+    @Autowired InventorySagaGateway inventory;
     @Autowired ServiceOrderGateway orders;
     @Autowired BranchScope branch;
     @Autowired PlatformTransactionManager manager;
@@ -192,7 +192,7 @@ class SagaCompensationIT extends HttpPostgresSupport {
     private void ready(UUID id) { jdbc.update("UPDATE service_order_saga SET next_attempt_at=CURRENT_TIMESTAMP WHERE service_order_id=?",id);jdbc.update("UPDATE saga_operation SET next_attempt_at=CURRENT_TIMESTAMP WHERE service_order_id=?",id); }
     private void pending(Fixture f,UUID id) { pending(f.order(),f.item(),id); }
     private void pending(UUID order,UUID item,UUID id) {
-        var request=new SagaParticipants.Consumption(id,order,item,UUID.fromString(admin().get("X-Authenticated-Subject")),List.of(new br.com.fiap.numberone.serviceorder.domain.entities.CompositionSnapshot.Material(UUID.fromString(MATERIAL),1)));
+        var request=new InventorySagaGateway.Consumption(id,order,item,UUID.fromString(admin().get("X-Authenticated-Subject")),List.of(new br.com.fiap.numberone.serviceorder.domain.entities.CompositionSnapshot.Material(UUID.fromString(MATERIAL),1)));
         // Crash immediately after durable intent, before sending CT-05.
         jdbc.update("INSERT INTO saga_operation(operation_id,service_order_id,item_id,composition_version,budget_revision,attempt,state,request) SELECT ?,id,?,composition_version,budget_revision,1,'START_PENDING',CAST(? AS jsonb) FROM ordem_servico WHERE id=?",id,item,json.writeValueAsString(request),order);
         jdbc.update("UPDATE item_ordem_servico SET start_pending=true,start_operation_id=? WHERE id=?",id,item);
@@ -209,7 +209,7 @@ class SagaCompensationIT extends HttpPostgresSupport {
         var f=approved();var id=UUID.randomUUID();pending(f,id);
         expect(202,cancel(f,cancellation()));compensation.recover(f.order());
         assertThat(balance()).isEqualTo(5);assertThat(stored(id).get("result").asString()).isEqualTo("CLOSED");
-        assertThatThrownBy(() -> participants.consume((SagaParticipants.Consumption)requests.get(id),UUID.randomUUID())).isInstanceOf(SagaDependencyException.class);
+        assertThatThrownBy(() -> inventory.consume((InventorySagaGateway.Consumption)requests.get(id),UUID.randomUUID())).isInstanceOf(SagaDependencyException.class);
         assertThat(balance()).isEqualTo(5);expect(409,start(f,id));
         compensation.recover(f.order());assertThat(saga(f.order())).isEqualTo("COMPENSATED");assertThat(op(id)).isEqualTo("SKIPPED");
         evidence("CLOSED antes de CT-05",f,List.of(5,5,5));
@@ -232,9 +232,9 @@ class SagaCompensationIT extends HttpPostgresSupport {
         var body=new HashMap<>(cancellation());body.put("physicallyRemoved",true);body.put("returnConfirmed",true);
         expect(202,cancel(f,body));lostReversal=true;compensation.recover(f.order());assertThat(balance()).isEqualTo(5);assertThat(saga(f.order())).isEqualTo("COMPENSATING");
         UUID reversal=jdbc.queryForObject("SELECT operation_id FROM saga_operation WHERE original_operation_id=?",UUID.class,id);
-        var request=json.readValue(jdbc.queryForObject("SELECT request::text FROM saga_operation WHERE operation_id=?",String.class,reversal),SagaParticipants.Reversal.class);
+        var request=json.readValue(jdbc.queryForObject("SELECT request::text FROM saga_operation WHERE operation_id=?",String.class,reversal),InventorySagaGateway.Reversal.class);
         assertThat(request.reason()).isEqualTo("VERIFIED_RETURN");lostReversal=false;
-        participants.reverse(id,request,UUID.randomUUID());participants.reverse(id,request,UUID.randomUUID());assertThat(balance()).isEqualTo(5);
+        inventory.reverse(id,request,UUID.randomUUID());inventory.reverse(id,request,UUID.randomUUID());assertThat(balance()).isEqualTo(5);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM fixture_stock_movement WHERE quantity=1",Integer.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT sum(quantity) FROM fixture_stock_movement",Integer.class)).isZero();
         ready(f.order());compensation.recover(f.order());compensation.recover(f.order());
@@ -304,7 +304,7 @@ class SagaCompensationIT extends HttpPostgresSupport {
     }
     @Test void activeRecoveryFindsDebitWithoutResendingAndPendingNeverConfirms() throws Exception {
         var f=approved();var id=UUID.randomUUID();pending(f,id);
-        participants.consume((SagaParticipants.Consumption)requests.get(id),UUID.randomUUID());
+        inventory.consume((InventorySagaGateway.Consumption)requests.get(id),UUID.randomUUID());
         pendingQuery=true;worker.tick();assertThat(op(id)).isEqualTo("AWAITING_RESULT");assertThat(consumptions.get()).isEqualTo(1);
         pendingQuery=false;ready(f.order());worker.tick();assertThat(op(id)).isEqualTo("CONFIRMED");assertThat(consumptions.get()).isEqualTo(1);assertThat(balance()).isEqualTo(4);
     }

@@ -3,6 +3,7 @@ package br.com.fiap.numberone.serviceorder.infrastructure.integration;
 import br.com.fiap.numberone.serviceorder.application.gateways.MaterialReferenceGateway;
 import br.com.fiap.numberone.serviceorder.application.gateways.MaterialReferenceUnavailableException;
 import br.com.fiap.numberone.serviceorder.domain.exceptions.OrderNotFoundException;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,8 +16,9 @@ import java.util.UUID;
 public class MaterialReferenceConfiguration {
     @Bean
     @ConditionalOnProperty(name = "app.material-reference.provider", havingValue = "http")
-    MaterialReferenceGateway httpMaterialReference(HttpSagaParticipants participants, ObjectMapper json) {
-        return new HttpMaterialReferenceGateway(participants, json);
+    MaterialReferenceGateway httpMaterialReference(@Qualifier("inventorySagaHttp") ParticipantHttpClient inventory,
+                                               ObjectMapper json) {
+        return new HttpMaterialReferenceGateway(inventory, json);
     }
 
     @Bean

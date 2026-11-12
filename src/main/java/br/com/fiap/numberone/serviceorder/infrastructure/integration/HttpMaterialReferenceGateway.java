@@ -15,11 +15,11 @@ import java.util.regex.Pattern;
 
 final class HttpMaterialReferenceGateway implements MaterialReferenceGateway {
     private static final Pattern PRICE = Pattern.compile("[0-9]{1,8}(?:\\.[0-9]{1,2})?");
-    private final HttpSagaParticipants participants;
+    private final ParticipantHttpClient inventory;
     private final ObjectMapper json;
 
-    HttpMaterialReferenceGateway(HttpSagaParticipants participants, ObjectMapper json) {
-        this.participants = participants;
+    HttpMaterialReferenceGateway(ParticipantHttpClient inventory, ObjectMapper json) {
+        this.inventory = inventory;
         this.json = json;
     }
 
@@ -27,7 +27,7 @@ final class HttpMaterialReferenceGateway implements MaterialReferenceGateway {
     public MaterialReference find(UUID id) {
         HttpResponse<String> reply;
         try {
-            reply = participants.inventoryGet("/internal/inventory/items/" + id, SagaCorrelation.current());
+            reply = inventory.get("/internal/inventory/items/" + id, SagaCorrelation.current());
         } catch (SagaDependencyException ex) {
             throw new MaterialReferenceUnavailableException();
         }

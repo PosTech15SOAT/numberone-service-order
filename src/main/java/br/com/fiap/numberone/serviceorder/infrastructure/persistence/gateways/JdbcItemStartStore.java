@@ -2,7 +2,7 @@ package br.com.fiap.numberone.serviceorder.infrastructure.persistence.gateways;
 
 import br.com.fiap.numberone.serviceorder.application.gateways.ItemStartStore;
 import br.com.fiap.numberone.serviceorder.application.gateways.OrderCompletionStore;
-import br.com.fiap.numberone.serviceorder.application.gateways.SagaParticipants;
+import br.com.fiap.numberone.serviceorder.application.gateways.InventorySagaGateway;
 import br.com.fiap.numberone.serviceorder.application.gateways.ServiceOrderGateway;
 import br.com.fiap.numberone.serviceorder.domain.exceptions.OrderNotFoundException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -64,12 +64,12 @@ public class JdbcItemStartStore implements ItemStartStore {
                 row.getObject("service_order_id", UUID.class), row.getObject("item_id", UUID.class),
                 row.getInt("composition_version"), row.getInt("budget_revision"),
                 StartState.valueOf(row.getString("state")),
-                json.readValue(row.getString("request"), SagaParticipants.Consumption.class), row.getString("reason")),
+                json.readValue(row.getString("request"), InventorySagaGateway.Consumption.class), row.getString("reason")),
                 operationId);
     }
 
     @Override
-    public StartAttempt registerStart(SagaParticipants.Consumption request, int compositionVersion, int budgetRevision,
+    public StartAttempt registerStart(InventorySagaGateway.Consumption request, int compositionVersion, int budgetRevision,
                                       StartOutcome outcome) {
         int number = jdbc.queryForObject(
                 "SELECT COALESCE(MAX(attempt),0)+1 FROM saga_operation WHERE item_id=?",
@@ -122,7 +122,7 @@ public class JdbcItemStartStore implements ItemStartStore {
                     json.writeValueAsString(outcome.inventoryResult()), attempt.id());
         }
         if (outcome.state() != StartState.START_PENDING) {
-            boolean updateTime = outcome.inventoryResult() instanceof SagaParticipants.ConsumptionResult
+            boolean updateTime = outcome.inventoryResult() instanceof InventorySagaGateway.ConsumptionResult
                     || (outcome.state() == StartState.NEEDS_REVIEW && outcome.inventoryResult() == null);
             jdbc.update("""
                     UPDATE saga_operation SET state=?,reason=?,
@@ -140,7 +140,7 @@ public class JdbcItemStartStore implements ItemStartStore {
     }
 
     @Override
-    public void saveLateResult(UUID operationId, SagaParticipants.ConsumptionResult result) {
+    public void saveLateResult(UUID operationId, InventorySagaGateway.ConsumptionResult result) {
         jdbc.update("UPDATE saga_operation SET late_result=CAST(? AS jsonb),updated_at=CURRENT_TIMESTAMP WHERE operation_id=?",
                 json.writeValueAsString(result), operationId);
     }

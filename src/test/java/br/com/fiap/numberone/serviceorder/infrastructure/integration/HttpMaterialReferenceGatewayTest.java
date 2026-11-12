@@ -19,7 +19,7 @@ import static org.mockito.Mockito.when;
 class HttpMaterialReferenceGatewayTest {
     private final UUID material = UUID.randomUUID();
     private final String path = "/internal/inventory/items/" + material;
-    private final HttpSagaParticipants participants = mock(HttpSagaParticipants.class);
+    private final ParticipantHttpClient participants = mock(ParticipantHttpClient.class);
     private final HttpMaterialReferenceGateway gateway = new HttpMaterialReferenceGateway(participants, new ObjectMapper());
 
     @ParameterizedTest
@@ -48,7 +48,7 @@ class HttpMaterialReferenceGatewayTest {
     void dependencyFailureCoversHttpErrorAndUnreachableService() {
         reply(503, "{}");
         assertThatThrownBy(() -> gateway.find(material)).isInstanceOf(MaterialReferenceUnavailableException.class);
-        when(participants.inventoryGet(eq(path), any(UUID.class))).thenThrow(new SagaDependencyException());
+        when(participants.get(eq(path), any(UUID.class))).thenThrow(new SagaDependencyException());
         assertThatThrownBy(() -> gateway.find(material)).isInstanceOf(MaterialReferenceUnavailableException.class);
     }
 
@@ -57,6 +57,6 @@ class HttpMaterialReferenceGatewayTest {
         HttpResponse<String> reply = mock(HttpResponse.class);
         when(reply.statusCode()).thenReturn(status);
         when(reply.body()).thenReturn(body);
-        when(participants.inventoryGet(eq(path), any(UUID.class))).thenReturn(reply);
+        when(participants.get(eq(path), any(UUID.class))).thenReturn(reply);
     }
 }

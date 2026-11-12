@@ -21,7 +21,7 @@ public interface ItemStartStore {
     }
 
     record StartAttempt(UUID id, UUID orderId, UUID itemId, int compositionVersion, int budgetRevision,
-                        StartState state, SagaParticipants.Consumption request, String reason) { }
+                        StartState state, InventorySagaGateway.Consumption request, String reason) { }
 
     record StartRequest(ServiceOrder order, SagaSnapshot saga, String requestedIntent,
                         StartAttempt requestedAttempt, StartAttempt lastAttempt) { }
@@ -37,7 +37,7 @@ public interface ItemStartStore {
     record StartOutcome(StartState state, String reason, SagaState nextSagaState, Object inventoryResult) { }
 
     StartRequest loadForRequest(UUID itemId, UUID branchId, UUID requestedId);
-    StartAttempt registerStart(SagaParticipants.Consumption request, int compositionVersion, int budgetRevision,
+    StartAttempt registerStart(InventorySagaGateway.Consumption request, int compositionVersion, int budgetRevision,
                                StartOutcome outcome);
     DispatchContext loadForDispatch(UUID operationId);
     Optional<DispatchTicket> claimDispatch(StartAttempt attempt);
@@ -45,5 +45,5 @@ public interface ItemStartStore {
     StartAttempt readAttempt(UUID operationId);
     boolean hasOtherPendingStarts(UUID orderId, UUID operationId);
     void saveOutcome(StartAttempt attempt, StartOutcome outcome);
-    void saveLateResult(UUID operationId, SagaParticipants.ConsumptionResult result);
+    void saveLateResult(UUID operationId, InventorySagaGateway.ConsumptionResult result);
 }

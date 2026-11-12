@@ -1,7 +1,7 @@
 package br.com.fiap.numberone.serviceorder.infrastructure.messaging;
 
 import br.com.fiap.numberone.serviceorder.application.gateways.ServiceOrderGateway;
-import br.com.fiap.numberone.serviceorder.application.gateways.SagaParticipants;
+import br.com.fiap.numberone.serviceorder.application.gateways.BillingSagaGateway;
 import br.com.fiap.numberone.serviceorder.application.services.FinishServiceOrder;
 import br.com.fiap.numberone.serviceorder.domain.entities.ServiceOrder;
 import br.com.fiap.numberone.serviceorder.domain.exceptions.OrderRuleException;
@@ -23,10 +23,10 @@ public class BillingInboxHandler {
     private final ServiceOrderGateway orders;
     private final BillingEventCodec codec;
     private final TransactionTemplate transaction;
-    private final SagaParticipants participants;
+    private final BillingSagaGateway participants;
     private final FinishServiceOrder workflow;
     public BillingInboxHandler(JdbcTemplate jdbc, ServiceOrderGateway orders, BillingEventCodec codec,
-                               PlatformTransactionManager manager, SagaParticipants participants, FinishServiceOrder workflow) {
+                               PlatformTransactionManager manager, BillingSagaGateway participants, FinishServiceOrder workflow) {
         this.jdbc = jdbc; this.orders = orders; this.codec = codec;
         this.participants = participants; this.workflow = workflow;
         transaction = new TransactionTemplate(manager);
@@ -50,7 +50,7 @@ public class BillingInboxHandler {
         final Long version;
         MissingContext(Long version) { super("BUDGET_CONTEXT_UNAVAILABLE"); this.version = version; }
     }
-    private Outcome apply(BillingEventCodec.Event e, SagaParticipants.CurrentBudget current, Long expectedVersion) {
+    private Outcome apply(BillingEventCodec.Event e, BillingSagaGateway.CurrentBudget current, Long expectedVersion) {
         // Serialize identity globally, then parent, then Saga. Inserting the FK before
         // locking the parent would allow concurrent deliveries to deadlock on lock upgrades.
         jdbc.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", e.id().toString());
@@ -76,7 +76,7 @@ public class BillingInboxHandler {
         return outcome;
     }
     private Outcome budget(BillingEventCodec.Event e, ServiceOrder order, String state,
-                           SagaParticipants.CurrentBudget current, Long expectedVersion) {
+                           BillingSagaGateway.CurrentBudget current, Long expectedVersion) {
         var p = e.payload();
         var budget = UUID.fromString(p.path("budgetId").asText());
         var revision = p.path("budgetVersion").intValue();

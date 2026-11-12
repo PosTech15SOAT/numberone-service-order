@@ -31,12 +31,13 @@ public class SagaCompensation {
     private final JdbcTemplate jdbc;
     private final ServiceOrderGateway orders;
     private final BranchScope branch;
-    private final SagaParticipants participants;
+    private final InventorySagaGateway inventory;
+    private final BillingSagaGateway billing;
     private final ObjectMapper json;
     private final TransactionTemplate tx;
     public SagaCompensation(JdbcTemplate jdbc, ServiceOrderGateway orders, BranchScope branch,
-                            SagaParticipants participants, ObjectMapper json, PlatformTransactionManager manager) {
-        this.jdbc=jdbc; this.orders=orders; this.branch=branch; this.participants=participants; this.json=json;
+                            InventorySagaGateway inventory, BillingSagaGateway billing, ObjectMapper json, PlatformTransactionManager manager) {
+        this.jdbc=jdbc; this.orders=orders; this.branch=branch; this.inventory=inventory; this.billing=billing; this.json=json;
         tx=new TransactionTemplate(manager); tx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW); tx.setTimeout(30);
     }
     private ServiceOrder load(UUID id, boolean scoped) {
@@ -75,8 +76,8 @@ public class SagaCompensation {
             // All original attempts are covered, including refused and currently in-flight ones.
             for (UUID original:jdbc.queryForList("SELECT operation_id FROM saga_operation WHERE service_order_id=? AND intent='START_ITEM' ORDER BY created_at,operation_id",UUID.class,id)) {
                 UUID compensation=UUID.randomUUID();
-                var reversal=new SagaParticipants.Reversal(compensation,request.physicallyRemoved() ? "VERIFIED_RETURN" : "CANCELLED_BEFORE_USE",
-                        true,new SagaParticipants.Evidence(author,request.verifiedAt(),request.evidenceReference()));
+                var reversal=new InventorySagaGateway.Reversal(compensation,request.physicallyRemoved() ? "VERIFIED_RETURN" : "CANCELLED_BEFORE_USE",
+                        true,new InventorySagaGateway.Evidence(author,request.verifiedAt(),request.evidenceReference()));
                 jdbc.update("""
                         INSERT INTO saga_operation(operation_id,service_order_id,intent,state,original_operation_id,request)
                         VALUES (?,?,'RESOLVE_STOCK','PENDING',?,CAST(? AS jsonb))
@@ -136,8 +137,8 @@ public class SagaCompensation {
                 if (existing.isEmpty()) {
                     operation=UUID.randomUUID();
                     Object request=o.getCurrentBudgetId()==null
-                            ? new SagaParticipants.ContextCancellation(operation,"SERVICE_ORDER_CANCELLED")
-                            : new SagaParticipants.Cancellation(operation,o.getBudgetRevision(),"SERVICE_ORDER_CANCELLED");
+                            ? new BillingSagaGateway.ContextCancellation(operation,"SERVICE_ORDER_CANCELLED")
+                            : new BillingSagaGateway.Cancellation(operation,o.getBudgetRevision(),"SERVICE_ORDER_CANCELLED");
                     jdbc.update("""
                             INSERT INTO saga_operation(operation_id,service_order_id,intent,state,request,budget_revision,budget_id)
                             VALUES (?,?,?,'PENDING',CAST(? AS jsonb),?,?)
@@ -152,25 +153,25 @@ public class SagaCompensation {
         try {
             Object result;
             if (work.intent().equals("RESOLVE_STOCK")) {
-                var known=participants.inventoryOperation(work.original(),work.correlation());
+                var known=inventory.inventoryOperation(work.original(),work.correlation());
                 if (Set.of("REJECTED","CLOSED","REVERSED").contains(known.result())) { result=known; }
                 else {
-                    try { result=participants.reverse(work.original(),json.readValue(work.request(),SagaParticipants.Reversal.class),work.correlation()); }
+                    try { result=inventory.reverse(work.original(),json.readValue(work.request(),InventorySagaGateway.Reversal.class),work.correlation()); }
                     catch (SagaConflictException ex) {
                         if (!"OPERATION_ALREADY_REJECTED".equals(ex.getMessage())) { throw ex; }
                         // A terminal refusal can win after the CT-08 read; confirm that fact.
-                        var refused=participants.inventoryOperation(work.original(),work.correlation());
+                        var refused=inventory.inventoryOperation(work.original(),work.correlation());
                         if (!"REJECTED".equals(refused.result())) { throw new SagaDependencyException(); }
                         result=refused;
                     }
                 }
-                var resolved=(SagaParticipants.InventoryOperation)result;
+                var resolved=(InventorySagaGateway.InventoryOperation)result;
                 if (Set.of("CLOSED","REVERSED").contains(resolved.result()) && !work.id().equals(resolved.compensationId())) {
                     throw new SagaConflictException("COMPENSATION_ID_CONFLICT");
                 }
             } else if (work.intent().equals("CANCEL_BUDGET")) {
-                result=participants.cancelBudget(work.budget(),json.readValue(work.request(),SagaParticipants.Cancellation.class),work.correlation());
-            } else { result=participants.closeBudgetContext(id,json.readValue(work.request(),SagaParticipants.ContextCancellation.class),work.correlation()); }
+                result=billing.cancelBudget(work.budget(),json.readValue(work.request(),BillingSagaGateway.Cancellation.class),work.correlation());
+            } else { result=billing.closeBudgetContext(id,json.readValue(work.request(),BillingSagaGateway.ContextCancellation.class),work.correlation()); }
             Object confirmed=result;
             tx.executeWithoutResult(t -> {
                 var o=load(id,false); var s=saga(id);

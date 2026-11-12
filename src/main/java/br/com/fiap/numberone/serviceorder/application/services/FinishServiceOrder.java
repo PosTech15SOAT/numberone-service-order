@@ -2,7 +2,7 @@ package br.com.fiap.numberone.serviceorder.application.services;
 
 import br.com.fiap.numberone.serviceorder.application.gateways.MaintenanceHistoryGateway;
 import br.com.fiap.numberone.serviceorder.application.gateways.SagaDependencyException;
-import br.com.fiap.numberone.serviceorder.application.gateways.SagaParticipants;
+import br.com.fiap.numberone.serviceorder.application.gateways.BillingSagaGateway;
 import br.com.fiap.numberone.serviceorder.application.gateways.OrderCompletionStore;
 import br.com.fiap.numberone.serviceorder.application.gateways.OrderCompletionStore.SagaSnapshot;
 import br.com.fiap.numberone.serviceorder.application.gateways.OrderCompletionStore.SagaState;
@@ -33,12 +33,12 @@ public class FinishServiceOrder {
     private static final Set<SagaState> DELIVERY_STATES = Set.of(SagaState.WAITING_PAYMENT, SagaState.READY_FOR_DELIVERY);
     private final ServiceOrderGateway orders;
     private final OrderCompletionStore persistence;
-    private final SagaParticipants participants;
+    private final BillingSagaGateway participants;
     private final BranchScope branch;
     private final MaintenanceHistoryGateway history;
     private final TransactionTemplate tx;
 
-    public FinishServiceOrder(ServiceOrderGateway orders, OrderCompletionStore persistence, SagaParticipants participants,
+    public FinishServiceOrder(ServiceOrderGateway orders, OrderCompletionStore persistence, BillingSagaGateway participants,
                         BranchScope branch, PlatformTransactionManager manager, MaintenanceHistoryGateway history) {
         this.orders = orders;
         this.persistence = persistence;
@@ -137,7 +137,7 @@ public class FinishServiceOrder {
         if (version == null) {
             return;
         }
-        SagaParticipants.Settlement result;
+        BillingSagaGateway.Settlement result;
         try {
             result = participants.settlement(id, correlation);
         } catch (SagaDependencyException unavailable) {

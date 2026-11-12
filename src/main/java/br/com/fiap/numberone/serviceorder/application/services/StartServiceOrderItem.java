@@ -9,7 +9,7 @@ import br.com.fiap.numberone.serviceorder.application.gateways.OrderCompletionSt
 import br.com.fiap.numberone.serviceorder.application.gateways.OrderCompletionStore.SagaSnapshot;
 import br.com.fiap.numberone.serviceorder.application.gateways.OrderCompletionStore.SagaState;
 import br.com.fiap.numberone.serviceorder.application.gateways.SagaDependencyException;
-import br.com.fiap.numberone.serviceorder.application.gateways.SagaParticipants;
+import br.com.fiap.numberone.serviceorder.application.gateways.InventorySagaGateway;
 import br.com.fiap.numberone.serviceorder.application.gateways.ServiceOrderGateway;
 import br.com.fiap.numberone.serviceorder.domain.entities.ServiceOrder;
 import br.com.fiap.numberone.serviceorder.domain.exceptions.OrderNotFoundException;
@@ -38,12 +38,12 @@ public class StartServiceOrderItem {
     private final ServiceOrderGateway orders;
     private final ItemStartStore starts;
     private final OrderCompletionStore sagas;
-    private final SagaParticipants inventory;
+    private final InventorySagaGateway inventory;
     private final BranchScope branch;
     private final TransactionTemplate tx;
 
     public StartServiceOrderItem(ServiceOrderGateway orders, ItemStartStore starts, OrderCompletionStore sagas,
-                                 SagaParticipants inventory, BranchScope branch, PlatformTransactionManager manager) {
+                                 InventorySagaGateway inventory, BranchScope branch, PlatformTransactionManager manager) {
         this.orders = orders;
         this.starts = starts;
         this.sagas = sagas;
@@ -108,7 +108,7 @@ public class StartServiceOrderItem {
         UUID operationId = requestedId == null ? UUID.randomUUID() : requestedId;
         var supplies = order.getApprovedComposition().items().stream()
                 .filter(item -> item.serviceOrderItemId().equals(itemId)).findFirst().orElseThrow().supplies();
-        var request = new SagaParticipants.Consumption(operationId, order.getId(), itemId, responsible, supplies);
+        var request = new InventorySagaGateway.Consumption(operationId, order.getId(), itemId, responsible, supplies);
         var outcome = supplies.isEmpty()
                 ? new StartOutcome(StartState.CONFIRMED, "NO_MATERIALS", SagaState.IN_EXECUTION, null)
                 : new StartOutcome(StartState.START_PENDING, null,
@@ -157,13 +157,13 @@ public class StartServiceOrderItem {
         return starts.claimDispatch(attempt);
     }
 
-    private SagaParticipants.ConsumptionResult requestInventoryResult(DispatchTicket ticket, UUID correlation, boolean recovering) {
+    private InventorySagaGateway.ConsumptionResult requestInventoryResult(DispatchTicket ticket, UUID correlation, boolean recovering) {
         var attempt = ticket.attempt();
         if (recovering || ticket.retry()) {
             var known = inventory.inventoryOperation(attempt.id(), correlation);
             switch (known.result()) {
                 case "CONSUMED", "REJECTED" -> {
-                    return new SagaParticipants.ConsumptionResult(attempt.id(), known.result(), known.movements(), known.code());
+                    return new InventorySagaGateway.ConsumptionResult(attempt.id(), known.result(), known.movements(), known.code());
                 }
                 case "CLOSED", "REVERSED" -> {
                     tx.executeWithoutResult(status -> recordUnexpectedClosure(ticket, known));
@@ -181,14 +181,14 @@ public class StartServiceOrderItem {
         return mayConsume ? inventory.consume(attempt.request(), correlation) : null;
     }
 
-    private void recordUnexpectedClosure(DispatchTicket ticket, SagaParticipants.InventoryOperation result) {
+    private void recordUnexpectedClosure(DispatchTicket ticket, InventorySagaGateway.InventoryOperation result) {
         var context = starts.loadForDispatch(ticket.attempt().id());
         if (!context.saga().cancellationInProgress() && context.ownedBy(ticket) && context.attempt().state().isPending()) {
             starts.saveOutcome(context.attempt(), review("UNEXPECTED_STOCK_CLOSURE", result));
         }
     }
 
-    private void applyResult(DispatchTicket ticket, SagaParticipants.ConsumptionResult result) {
+    private void applyResult(DispatchTicket ticket, InventorySagaGateway.ConsumptionResult result) {
         var context = starts.loadForDispatch(ticket.attempt().id());
         var attempt = context.attempt();
         if (context.saga().cancellationInProgress()) {
