@@ -19,11 +19,14 @@ import static br.com.fiap.numberone.serviceorder.domain.enums.OrderItemStatus.*;
 public class ServiceOrderController {
     private final ServiceOrderService service;
     private final ServiceOrderApiMapper mapper;
-    private final br.com.fiap.numberone.serviceorder.application.services.SagaWorkflow saga;
+    private final br.com.fiap.numberone.serviceorder.application.services.StartServiceOrderItem startItem;
+    private final br.com.fiap.numberone.serviceorder.application.services.FinishServiceOrder finishOrder;
     public ServiceOrderController(ServiceOrderService service, ServiceOrderApiMapper mapper,
-            br.com.fiap.numberone.serviceorder.application.services.SagaWorkflow saga) {
+            br.com.fiap.numberone.serviceorder.application.services.StartServiceOrderItem startItem,
+            br.com.fiap.numberone.serviceorder.application.services.FinishServiceOrder finishOrder) {
         this.service = service; this.mapper = mapper;
-        this.saga = saga;
+        this.startItem = startItem;
+        this.finishOrder = finishOrder;
     }
     @PostMapping
     public ResponseEntity<OrderResponses.Order> create(@Valid @RequestBody OrderRequests.Create r) {
@@ -40,7 +43,7 @@ public class ServiceOrderController {
     public OrderResponses.Estimate estimate(@PathVariable UUID id) {
         return new OrderResponses.Estimate("ESTIMATIVA", "BRL", service.get(id).estimate());
     }
-    @PatchMapping("/{id}/iniciar") public OrderResponses.Order start(@PathVariable UUID id) { return mapper.toResponse(saga.readiness(id)); }
+    @PatchMapping("/{id}/iniciar") public OrderResponses.Order start(@PathVariable UUID id) { return mapper.toResponse(startItem.readiness(id)); }
     @GetMapping("/{id}/calcular-tempo-estimado") public OrderResponses.EstimatedTime estimatedTime(@PathVariable UUID id) {
         long minutes = service.get(id).estimatedMinutes();
         return new OrderResponses.EstimatedTime(id, minutes, LocalDateTime.now(ZoneOffset.UTC).plusMinutes(minutes));
@@ -53,10 +56,10 @@ public class ServiceOrderController {
     }
     @PatchMapping("/{id}/concluir")
     public OrderResponses.Order complete(@PathVariable UUID id, @Valid @RequestBody(required = false) OrderRequests.Completion completion) {
-        saga.complete(id, completion == null ? null : completion.odometerKm());
+        finishOrder.complete(id, completion == null ? null : completion.odometerKm());
         return mapper.toResponse(service.get(id));
     }
     @PatchMapping("/{id}/entregar") public OrderResponses.Order deliver(@PathVariable UUID id) {
-        saga.deliver(id, br.com.fiap.numberone.shared.infrastructure.correlation.SagaCorrelation.current()); return mapper.toResponse(service.get(id));
+        finishOrder.deliver(id, br.com.fiap.numberone.shared.infrastructure.correlation.SagaCorrelation.current()); return mapper.toResponse(service.get(id));
     }
 }

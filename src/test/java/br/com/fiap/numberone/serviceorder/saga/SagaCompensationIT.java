@@ -47,7 +47,6 @@ class SagaCompensationIT extends HttpPostgresSupport {
     }
     @Autowired SagaCompensation compensation;
     @Autowired SagaRecoveryWorker worker;
-    @Autowired SagaWorkflow workflow;
     @Autowired BillingInboxHandler inbox;
     @Autowired SagaParticipants participants;
     @Autowired ServiceOrderGateway orders;

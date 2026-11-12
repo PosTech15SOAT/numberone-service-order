@@ -15,11 +15,11 @@ import java.util.UUID;
 public class ServiceOrderItemController {
     private final ServiceOrderService service;
     private final ServiceOrderApiMapper mapper;
-    private final br.com.fiap.numberone.serviceorder.application.services.SagaWorkflow saga;
+    private final br.com.fiap.numberone.serviceorder.application.services.StartServiceOrderItem saga;
     private final br.com.fiap.numberone.shared.security.application.gateways.AuthenticatedUserProvider users;
     private final tools.jackson.databind.ObjectMapper json;
     public ServiceOrderItemController(ServiceOrderService service, ServiceOrderApiMapper mapper,
-            br.com.fiap.numberone.serviceorder.application.services.SagaWorkflow saga,
+            br.com.fiap.numberone.serviceorder.application.services.StartServiceOrderItem saga,
             br.com.fiap.numberone.shared.security.application.gateways.AuthenticatedUserProvider users,
             tools.jackson.databind.ObjectMapper json) {
         this.service = service; this.mapper = mapper;

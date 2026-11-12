@@ -2,7 +2,7 @@ package br.com.fiap.numberone.serviceorder.infrastructure.messaging;
 
 import br.com.fiap.numberone.serviceorder.application.gateways.ServiceOrderGateway;
 import br.com.fiap.numberone.serviceorder.application.gateways.SagaParticipants;
-import br.com.fiap.numberone.serviceorder.application.services.SagaWorkflow;
+import br.com.fiap.numberone.serviceorder.application.services.FinishServiceOrder;
 import br.com.fiap.numberone.serviceorder.domain.entities.ServiceOrder;
 import br.com.fiap.numberone.serviceorder.domain.exceptions.OrderRuleException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -24,9 +24,9 @@ public class BillingInboxHandler {
     private final BillingEventCodec codec;
     private final TransactionTemplate transaction;
     private final SagaParticipants participants;
-    private final SagaWorkflow workflow;
+    private final FinishServiceOrder workflow;
     public BillingInboxHandler(JdbcTemplate jdbc, ServiceOrderGateway orders, BillingEventCodec codec,
-                               PlatformTransactionManager manager, SagaParticipants participants, SagaWorkflow workflow) {
+                               PlatformTransactionManager manager, SagaParticipants participants, FinishServiceOrder workflow) {
         this.jdbc = jdbc; this.orders = orders; this.codec = codec;
         this.participants = participants; this.workflow = workflow;
         transaction = new TransactionTemplate(manager);

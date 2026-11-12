@@ -12,9 +12,11 @@ public class SagaRecoveryWorker {
     private static final org.slf4j.Logger LOG=org.slf4j.LoggerFactory.getLogger(SagaRecoveryWorker.class);
     private final JdbcTemplate jdbc;
     private final SagaCompensation compensation;
-    private final SagaWorkflow workflow;
-    public SagaRecoveryWorker(JdbcTemplate jdbc,SagaCompensation compensation,SagaWorkflow workflow) {
-        this.jdbc=jdbc; this.compensation=compensation; this.workflow=workflow;
+    private final StartServiceOrderItem startItem;
+    private final FinishServiceOrder finishOrder;
+    public SagaRecoveryWorker(JdbcTemplate jdbc,SagaCompensation compensation,StartServiceOrderItem startItem,
+                              FinishServiceOrder finishOrder) {
+        this.jdbc=jdbc; this.compensation=compensation; this.startItem=startItem; this.finishOrder=finishOrder;
     }
     public void tick() {
         for (UUID id:jdbc.queryForList("SELECT service_order_id FROM service_order_saga WHERE state='COMPENSATING' AND next_attempt_at<=CURRENT_TIMESTAMP AND (recovery_until IS NULL OR recovery_until<CURRENT_TIMESTAMP) ORDER BY next_attempt_at LIMIT 50",UUID.class)) {
@@ -27,7 +29,7 @@ public class SagaRecoveryWorker {
                 AND NOT s.cancellation_in_progress AND s.state IN ('READY_FOR_EXECUTION','START_PENDING','IN_EXECUTION')
                 ORDER BY p.next_attempt_at LIMIT 50
                 """,UUID.class)) {
-            safely(id,() -> workflow.recoverStart(id,id));
+            safely(id,() -> startItem.recoverStart(id,id));
         }
         for (UUID id:jdbc.queryForList("""
                 SELECT service_order_id FROM service_order_saga WHERE settlement_pending AND NOT cancellation_in_progress
@@ -36,7 +38,7 @@ public class SagaRecoveryWorker {
                 """,UUID.class)) {
             UUID owner=UUID.randomUUID();
             if (jdbc.update("UPDATE service_order_saga SET recovery_owner=?,recovery_until=CURRENT_TIMESTAMP+interval '30 seconds' WHERE service_order_id=? AND (recovery_until IS NULL OR recovery_until<CURRENT_TIMESTAMP)",owner,id)==1) {
-                try { safely(id,() -> workflow.refreshSettlement(id,id)); }
+                try { safely(id,() -> finishOrder.refreshSettlement(id,id)); }
                 finally { jdbc.update("UPDATE service_order_saga SET recovery_owner=NULL,recovery_until=NULL,next_attempt_at=CURRENT_TIMESTAMP+interval '5 seconds' WHERE service_order_id=? AND recovery_owner=?",id,owner); }
             }
         }
