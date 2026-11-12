@@ -1,5 +1,6 @@
 package br.com.fiap.numberone.serviceorder.infrastructure.messaging;
 
+import br.com.fiap.numberone.serviceorder.application.services.ProcessBillingEvent;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.*;
@@ -27,7 +28,7 @@ public class SqsBillingConfiguration {
         return builder.build();
     }
     @Bean
-    SqsBillingConsumer billingConsumer(SqsClient sqs, BillingInboxHandler handler, BillingEventCodec codec,
+    SqsBillingConsumer billingConsumer(SqsClient sqs, ProcessBillingEvent handler, BillingEventCodec codec,
                                       MeterRegistry metrics, @Value("${app.billing.sqs.queue-url}") String url) {
         if (url.isBlank()) { throw new IllegalStateException("BILLING_QUEUE_URL_REQUIRED"); }
         var attributes = sqs.getQueueAttributes(b -> b.queueUrl(url).attributeNames(QueueAttributeName.ALL)).attributes();

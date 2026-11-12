@@ -1,7 +1,9 @@
 package br.com.fiap.numberone.serviceorder.saga;
 
+import br.com.fiap.numberone.serviceorder.infrastructure.messaging.BillingEventCodec;
+import br.com.fiap.numberone.serviceorder.application.events.BillingEvent;
 import br.com.fiap.numberone.support.HttpPostgresSupport;
-import br.com.fiap.numberone.serviceorder.infrastructure.messaging.BillingInboxHandler;
+import br.com.fiap.numberone.serviceorder.application.services.ProcessBillingEvent;
 import br.com.fiap.numberone.serviceorder.infrastructure.history.MaintenanceHistoryWorker;
 import com.sun.net.httpserver.HttpServer;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -87,7 +89,8 @@ class SagaMainFlowIT extends HttpPostgresSupport {
         p.add("app.history.worker-enabled", () -> false);
         p.add("app.history.table", () -> HISTORY_TABLE);
     }
-    @Autowired BillingInboxHandler inbox;
+    @Autowired ProcessBillingEvent inbox;
+    @Autowired BillingEventCodec codec;
     @Autowired br.com.fiap.numberone.serviceorder.application.services.SagaRecoveryWorker recovery;
     private final Map<UUID,JsonNode> inventory = new ConcurrentHashMap<>();
     private final List<JsonNode> requests = new CopyOnWriteArrayList<>();
@@ -175,8 +178,8 @@ class SagaMainFlowIT extends HttpPostgresSupport {
     }
     private UUID approve(UUID order) throws Exception {
         UUID budget = UUID.randomUUID();
-        inbox.handle(event("OrcamentoEnviado", order, budget, 1, composition(order)));
-        inbox.handle(event("OrcamentoAprovado", order, budget, 1, composition(order)));
+        processBillingEvent(event("OrcamentoEnviado", order, budget, 1, composition(order)));
+        processBillingEvent(event("OrcamentoAprovado", order, budget, 1, composition(order)));
         assertThat(saga(order)).isEqualTo("READY_FOR_EXECUTION"); return budget;
     }
     private Reply start(UUID item, UUID key) throws Exception {
@@ -228,7 +231,7 @@ class SagaMainFlowIT extends HttpPostgresSupport {
         expect(409, action(f.order(), "entregar"));
         // Simulated employee payment in Billing AFTER CT-02A says COMPLETED.
         settlementMode = "PAID";
-        inbox.handle(payment(f.order(), UUID.randomUUID(), 1, false));
+        processBillingEvent(payment(f.order(), UUID.randomUUID(), 1, false));
         assertThat(saga(f.order())).isEqualTo("READY_FOR_DELIVERY");
         int before = settlements.get();
         var delivered = expect(200, action(f.order(), "entregar")); trace("os-api.openapi.yaml", "DeliveredOrder", delivered);
@@ -264,7 +267,7 @@ class SagaMainFlowIT extends HttpPostgresSupport {
             expect(403, call("GET", historyPath(f.vehicle()), null, customer(UUID.randomUUID())));
             expect(409, action(f.order(), "entregar"));
             settlementMode = "PAID"; // Simulates the employee collecting payment in Billing.
-            inbox.handle(payment(f.order(), UUID.randomUUID(), 1, false));
+            processBillingEvent(payment(f.order(), UUID.randomUUID(), 1, false));
             assertThat(saga(f.order())).isEqualTo("READY_FOR_DELIVERY");
             assertThat(expect(200, action(f.order(), "entregar")).path("status").asString()).isEqualTo("ENTREGUE");
             assertThat(historyRow(f.order())).containsEntry("state", "PENDING").containsEntry("snapshot", snapshot);
@@ -476,51 +479,51 @@ class SagaMainFlowIT extends HttpPostgresSupport {
     }
     @Test void obsoleteApprovalCannotAuthorizeChangedCompositionAndOutOfOrderDecisionRecoversThroughCt10() throws Exception {
         var f = diagnosisFixture(); int old = composition(f.order()); addMaterial(f.item()); UUID budget = UUID.randomUUID();
-        assertThat(inbox.handle(event("OrcamentoAprovado", f.order(), budget, 1, old))).isEqualTo(BillingInboxHandler.Outcome.OBSOLETE);
+        assertThat(processBillingEvent(event("OrcamentoAprovado", f.order(), budget, 1, old))).isEqualTo(BillingEvent.Outcome.OBSOLETE);
         assertThat(budgetLookups.get()).isZero(); expect(409, start(f.item(), null));
         var approval = event("OrcamentoAprovado", f.order(), budget, 1, composition(f.order()));
-        assertThatThrownBy(() -> inbox.handle(approval)).hasMessage("DEPENDENCY_UNAVAILABLE");
+        assertThatThrownBy(() -> processBillingEvent(approval)).hasMessage("DEPENDENCY_UNAVAILABLE");
         currentBudget = fixture("current-budget.json"); currentBudget.put("serviceOrderId", f.order().toString());
         currentBudget.put("budgetId", budget.toString()); currentBudget.put("budgetVersion", 1);
         currentBudget.put("compositionVersion", composition(f.order()));
         currentBudget.put("amount", json.readTree(approval).get("payload").get("approvedAmount").asString());
-        inbox.handle(approval); assertThat(saga(f.order())).isEqualTo("READY_FOR_EXECUTION");
-        assertThat(inbox.handle(approval)).isEqualTo(BillingInboxHandler.Outcome.DUPLICATE);
-        assertThat(inbox.handle(event("OrcamentoEnviado", f.order(), budget, 1, composition(f.order())))).isEqualTo(BillingInboxHandler.Outcome.IGNORED);
-        assertThatThrownBy(() -> inbox.handle(event("OrcamentoRejeitado", f.order(), budget, 1, composition(f.order())))).hasMessage("BUDGET_DECISION_CONFLICT");
+        processBillingEvent(approval); assertThat(saga(f.order())).isEqualTo("READY_FOR_EXECUTION");
+        assertThat(processBillingEvent(approval)).isEqualTo(BillingEvent.Outcome.DUPLICATE);
+        assertThat(processBillingEvent(event("OrcamentoEnviado", f.order(), budget, 1, composition(f.order())))).isEqualTo(BillingEvent.Outcome.IGNORED);
+        assertThatThrownBy(() -> processBillingEvent(event("OrcamentoRejeitado", f.order(), budget, 1, composition(f.order())))).hasMessage("BUDGET_DECISION_CONFLICT");
     }
     @Test void rejectedRevisionCanBeReplacedButOldApprovalNeverRegressesCurrentRevision() throws Exception {
         var f = diagnosisFixture(); UUID first = UUID.randomUUID(), next = UUID.randomUUID(); int c = composition(f.order());
-        inbox.handle(event("OrcamentoEnviado", f.order(), first, 1, c));
-        inbox.handle(event("OrcamentoRejeitado", f.order(), first, 1, c)); assertThat(saga(f.order())).isEqualTo("WAITING_REVISION");
-        inbox.handle(event("OrcamentoEnviado", f.order(), next, 2, c));
-        assertThat(inbox.handle(event("OrcamentoAprovado", f.order(), first, 1, c))).isEqualTo(BillingInboxHandler.Outcome.OBSOLETE);
+        processBillingEvent(event("OrcamentoEnviado", f.order(), first, 1, c));
+        processBillingEvent(event("OrcamentoRejeitado", f.order(), first, 1, c)); assertThat(saga(f.order())).isEqualTo("WAITING_REVISION");
+        processBillingEvent(event("OrcamentoEnviado", f.order(), next, 2, c));
+        assertThat(processBillingEvent(event("OrcamentoAprovado", f.order(), first, 1, c))).isEqualTo(BillingEvent.Outcome.OBSOLETE);
         expect(409, start(f.item(), null));
-        inbox.handle(event("OrcamentoAprovado", f.order(), next, 2, c)); expect(200, start(f.item(), null));
+        processBillingEvent(event("OrcamentoAprovado", f.order(), next, 2, c)); expect(200, start(f.item(), null));
     }
     @Test void newerCurrentDecisionCanOvertakePreviousRejectionOnStandardQueue() throws Exception {
         var f = diagnosisFixture(); UUID first = UUID.randomUUID(), next = UUID.randomUUID(); int c = composition(f.order());
-        inbox.handle(event("OrcamentoEnviado", f.order(), first, 1, c));
+        processBillingEvent(event("OrcamentoEnviado", f.order(), first, 1, c));
         currentBudget = fixture("current-budget.json"); currentBudget.put("serviceOrderId", f.order().toString());
         currentBudget.put("budgetId", next.toString()); currentBudget.put("budgetVersion", 2); currentBudget.put("compositionVersion", c);
         var approval = event("OrcamentoAprovado", f.order(), next, 2, c);
         currentBudget.put("amount", json.readTree(approval).get("payload").get("approvedAmount").asString());
-        inbox.handle(approval); assertThat(saga(f.order())).isEqualTo("READY_FOR_EXECUTION");
-        assertThat(inbox.handle(event("OrcamentoRejeitado", f.order(), first, 1, c))).isEqualTo(BillingInboxHandler.Outcome.OBSOLETE);
+        processBillingEvent(approval); assertThat(saga(f.order())).isEqualTo("READY_FOR_EXECUTION");
+        assertThat(processBillingEvent(event("OrcamentoRejeitado", f.order(), first, 1, c))).isEqualTo(BillingEvent.Outcome.OBSOLETE);
         expect(200, start(f.item(), null));
     }
     @Test void deliveryUsesOfficialSettlementEvenBeforeFinancialEventAndRefundDoesNotEraseDelivery() throws Exception {
         var f = diagnosisFixture(); complete(f); settlementMode = "PAID";
         expect(200, action(f.order(), "entregar")); assertThat(order(f.order()).get("pagamentoConfirmado").asBoolean()).isFalse();
-        UUID payment = UUID.randomUUID(); inbox.handle(payment(f.order(), payment, 2, true));
-        assertThat(inbox.handle(payment(f.order(), payment, 1, false))).isEqualTo(BillingInboxHandler.Outcome.OBSOLETE);
+        UUID payment = UUID.randomUUID(); processBillingEvent(payment(f.order(), payment, 2, true));
+        assertThat(processBillingEvent(payment(f.order(), payment, 1, false))).isEqualTo(BillingEvent.Outcome.OBSOLETE);
         var o = order(f.order()); assertThat(o.get("status").asString()).isEqualTo("ENTREGUE");
         assertThat(o.get("payments").get(0).get("paymentStatus").asString()).isEqualTo("REFUNDED");
         assertThat(saga(f.order())).isEqualTo("COMPLETED");
     }
     @Test void unavailableTimeoutAndFalseSettlementBlockDeliveryEvenWithPaidProjection() throws Exception {
         var f = diagnosisFixture(); complete(f); settlementMode = "UNAVAILABLE";
-        inbox.handle(payment(f.order(), UUID.randomUUID(), 1, false));
+        processBillingEvent(payment(f.order(), UUID.randomUUID(), 1, false));
         assertThat(order(f.order()).get("settlementPending").asBoolean()).isTrue();
         expect(503, action(f.order(), "entregar"));
         settlementMode = "UNSETTLED"; expect(409, action(f.order(), "entregar"));
@@ -539,7 +542,7 @@ class SagaMainFlowIT extends HttpPostgresSupport {
     }
     @Test void recoveryOfPaymentVerificationPreservesCompletedRepairAndBlocksUnpaidDelivery() throws Exception {
         var f=diagnosisFixture();complete(f);settlementMode="UNAVAILABLE";
-        inbox.handle(payment(f.order(),UUID.randomUUID(),1,false));
+        processBillingEvent(payment(f.order(),UUID.randomUUID(),1,false));
         assertThat(jdbc.queryForObject("SELECT settlement_pending FROM service_order_saga WHERE service_order_id=?",Boolean.class,f.order())).isTrue();
         settlementMode="UNSETTLED";recovery.tick();
         assertThat(saga(f.order())).isEqualTo("WAITING_PAYMENT");
@@ -580,20 +583,20 @@ class SagaMainFlowIT extends HttpPostgresSupport {
         currentBudget.put("budgetId", budget.toString()); currentBudget.put("compositionVersion", composition(f.order()));
         currentBudget.put("amount", json.readTree(approval).get("payload").get("approvedAmount").asString());
         duringBudget = () -> jdbc.update("UPDATE ordem_servico SET version=version+1 WHERE id=?", f.order());
-        assertThatThrownBy(() -> inbox.handle(approval)).hasMessage("BUDGET_CONTEXT_CHANGED");
+        assertThatThrownBy(() -> processBillingEvent(approval)).hasMessage("BUDGET_CONTEXT_CHANGED");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM inbox_event", Integer.class)).isZero();
         assertThat(saga(f.order())).isEqualTo("IN_DIAGNOSIS");
-        duringBudget = () -> {}; inbox.handle(approval); assertThat(saga(f.order())).isEqualTo("READY_FOR_EXECUTION");
+        duringBudget = () -> {}; processBillingEvent(approval); assertThat(saga(f.order())).isEqualTo("READY_FOR_EXECUTION");
     }
     @Test void financialProjectionCanPrecedeApprovalAndRefundRequiresAnotherOfficialCheck() throws Exception {
         var f = diagnosisFixture(); UUID paid = UUID.randomUUID();
-        inbox.handle(payment(f.order(), paid, 1, false));
+        processBillingEvent(payment(f.order(), paid, 1, false));
         assertThat(order(f.order()).get("pagamentoConfirmado").asBoolean()).isTrue();
         assertThat(saga(f.order())).isEqualTo("IN_DIAGNOSIS"); expect(409, start(f.item(), null));
         complete(f); settlementMode = "PAID";
-        var another = payment(f.order(), UUID.randomUUID(), 1, false); inbox.handle(another);
+        var another = payment(f.order(), UUID.randomUUID(), 1, false); processBillingEvent(another);
         assertThat(saga(f.order())).isEqualTo("READY_FOR_DELIVERY");
-        settlementMode = "UNSETTLED"; inbox.handle(payment(f.order(), paid, 2, true));
+        settlementMode = "UNSETTLED"; processBillingEvent(payment(f.order(), paid, 2, true));
         assertThat(saga(f.order())).isEqualTo("WAITING_PAYMENT"); expect(409, action(f.order(), "entregar"));
         assertThat(order(f.order()).get("payments").size()).isEqualTo(2);
     }
@@ -622,5 +625,9 @@ class SagaMainFlowIT extends HttpPostgresSupport {
         } finally {
             jdbc.execute("DROP TRIGGER phase4_fail_intent_at_commit ON saga_operation"); jdbc.execute("DROP FUNCTION phase4_fail_intent()");
         }
+    }
+
+    private BillingEvent.Outcome processBillingEvent(String body) {
+        return inbox.process(codec.decode(body));
     }
 }

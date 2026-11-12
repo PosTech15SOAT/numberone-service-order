@@ -1,5 +1,7 @@
 package br.com.fiap.numberone.serviceorder.infrastructure.messaging;
 
+import br.com.fiap.numberone.serviceorder.application.events.BillingEvent;
+import br.com.fiap.numberone.serviceorder.application.services.ProcessBillingEvent;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,10 +19,10 @@ public class SqsBillingConsumer {
     private static final Logger log = LoggerFactory.getLogger(SqsBillingConsumer.class);
     private final SqsClient sqs;
     private final String queue;
-    private final BillingInboxHandler handler;
+    private final ProcessBillingEvent handler;
     private final BillingEventCodec codec;
     private final MeterRegistry metrics;
-    public SqsBillingConsumer(SqsClient sqs, String queue, BillingInboxHandler handler,
+    public SqsBillingConsumer(SqsClient sqs, String queue, ProcessBillingEvent handler,
                              BillingEventCodec codec, MeterRegistry metrics) {
         this.sqs = sqs; this.queue = queue; this.handler = handler; this.codec = codec; this.metrics = metrics;
     }
@@ -37,7 +39,7 @@ public class SqsBillingConsumer {
         }
     }
     public void consume(Message message) {
-        BillingEventCodec.Event identity = null;
+        BillingEvent identity = null;
         var leaseFailed = new AtomicBoolean(false);
         var heartbeat = Executors.newSingleThreadScheduledExecutor(Thread.ofPlatform().daemon().factory());
         var renewal = heartbeat.scheduleAtFixedRate(() -> {
@@ -52,7 +54,7 @@ public class SqsBillingConsumer {
         try {
             var event = codec.decode(message.body());
             identity = event;
-            var outcome = handler.handle(message.body()); // REQUIRES_NEW commits before returning.
+            var outcome = handler.process(event); // REQUIRES_NEW commits before returning.
             metrics.counter("os.billing.processed", "outcome", outcome.name()).increment();
             metrics.summary("os.billing.event.delay.seconds").record(Math.max(0, Duration.between(event.occurredAt(), Instant.now()).toSeconds()));
             log.info("Billing event eventId={} correlationId={} serviceOrderId={} sagaId={} outcome={}",

@@ -1,5 +1,7 @@
 package br.com.fiap.numberone.serviceorder.messaging;
 
+import br.com.fiap.numberone.serviceorder.application.events.BillingEvent;
+import br.com.fiap.numberone.serviceorder.application.services.ProcessBillingEvent;
 import br.com.fiap.numberone.serviceorder.infrastructure.messaging.*;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
@@ -12,7 +14,7 @@ import static org.assertj.core.api.Assertions.*;
 
 class SqsBillingConsumerTest {
     @Test void pollsWithContractLeaseAndLetsSqsRedrivePoisonMessages() {
-        var sqs = mock(SqsClient.class); var handler = mock(BillingInboxHandler.class);
+        var sqs = mock(SqsClient.class); var handler = mock(ProcessBillingEvent.class);
         var meter = new SimpleMeterRegistry();
         when(sqs.receiveMessage(any(ReceiveMessageRequest.class))).thenAnswer(call -> {
             ReceiveMessageRequest request = call.getArgument(0);
@@ -32,11 +34,14 @@ class SqsBillingConsumerTest {
     }
     @Test void recordsIdentityDelayAndDuplicateOutcomeThenDeletes() throws Exception {
         var body = Files.readString(Path.of("doc/contracts/saga/v2/examples/OrcamentoEnviado.json"));
-        var sqs = mock(SqsClient.class); var handler = mock(BillingInboxHandler.class); var meter = new SimpleMeterRegistry();
-        when(handler.handle(body)).thenReturn(BillingInboxHandler.Outcome.DUPLICATE);
-        var consumer = new SqsBillingConsumer(sqs, "mock://billing-os", handler, new BillingEventCodec(), meter);
+        var sqs = mock(SqsClient.class); var handler = mock(ProcessBillingEvent.class); var meter = new SimpleMeterRegistry();
+        var codec = spy(new BillingEventCodec());
+        var event = new BillingEventCodec().decode(body);
+        when(handler.process(event)).thenReturn(BillingEvent.Outcome.DUPLICATE);
+        var consumer = new SqsBillingConsumer(sqs, "mock://billing-os", handler, codec, meter);
         consumer.consume(Message.builder().body(body).receiptHandle("receipt").build());
-        var ordered = inOrder(handler, sqs); ordered.verify(handler).handle(body);
+        var ordered = inOrder(handler, sqs); ordered.verify(handler).process(event);
+        verify(codec).decode(body);
         ordered.verify(sqs).deleteMessage(any(DeleteMessageRequest.class));
         assertThat(meter.get("os.billing.processed").tag("outcome", "DUPLICATE").counter().count()).isEqualTo(1);
     }

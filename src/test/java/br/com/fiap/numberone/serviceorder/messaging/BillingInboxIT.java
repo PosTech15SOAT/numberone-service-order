@@ -1,5 +1,7 @@
 package br.com.fiap.numberone.serviceorder.messaging;
 
+import br.com.fiap.numberone.serviceorder.application.events.BillingEvent;
+import br.com.fiap.numberone.serviceorder.application.services.ProcessBillingEvent;
 import br.com.fiap.numberone.support.HttpPostgresSupport;
 import br.com.fiap.numberone.serviceorder.infrastructure.messaging.*;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -19,7 +21,7 @@ import static org.mockito.ArgumentMatchers.any;
 
 /** PostgreSQL real; producer fixture + SQS SDK mock, no AWS/emulator or live Billing. */
 class BillingInboxIT extends HttpPostgresSupport {
-    @Autowired BillingInboxHandler handler;
+    @Autowired ProcessBillingEvent handler;
     @Autowired BillingEventCodec codec;
     @Autowired PlatformTransactionManager manager;
     @Autowired br.com.fiap.numberone.serviceorder.application.services.ServiceOrderService orderService;
@@ -67,18 +69,18 @@ class BillingInboxIT extends HttpPostgresSupport {
         new SqsBillingConsumer(sqs, "mock://billing-os", handler, codec, new SimpleMeterRegistry()).consume(delivery(body));
         verify(sqs).deleteMessage(any(DeleteMessageRequest.class));
         assertThat(jdbc.queryForObject("SELECT current_budget_id FROM ordem_servico WHERE id=?", UUID.class, f.order()))
-                .isEqualTo(UUID.fromString(codec.decode(body).payload().get("budgetId").asText()));
+                .isEqualTo(((BillingEvent.Budget) codec.decode(body).payload()).id());
     }
     @Test void identicalDuplicateDoesNotReapplyAndKeyOrderIsIrrelevant() throws Exception {
         var f = diagnosisFixture(); var body = event(f.order());
-        assertThat(handler.handle(body)).isEqualTo(BillingInboxHandler.Outcome.APPLIED);
-        assertThat(handler.handle(" \n" + body + "\n")).isEqualTo(BillingInboxHandler.Outcome.DUPLICATE);
+        assertThat(processBillingEvent(body)).isEqualTo(BillingEvent.Outcome.APPLIED);
+        assertThat(processBillingEvent(" \n" + body + "\n")).isEqualTo(BillingEvent.Outcome.DUPLICATE);
         assertThat(inboxCount()).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT version FROM service_order_saga WHERE service_order_id=?", Long.class, f.order())).isEqualTo(1);
     }
     @Test void collisionIsRejectedAndOriginalEffectRemains() throws Exception {
-        var f = diagnosisFixture(); var body = event(f.order()); handler.handle(body);
-        assertThatThrownBy(() -> handler.handle(changed(body, "budgetId", UUID.randomUUID())))
+        var f = diagnosisFixture(); var body = event(f.order()); processBillingEvent(body);
+        assertThatThrownBy(() -> processBillingEvent(changed(body, "budgetId", UUID.randomUUID())))
                 .hasMessage("EVENT_ID_COLLISION");
         assertThat(inboxCount()).isEqualTo(1); assertThat(state(f.order())).isEqualTo("WAITING_APPROVAL");
         var sqs = mock(SqsClient.class);
@@ -99,7 +101,7 @@ class BillingInboxIT extends HttpPostgresSupport {
         } finally {
             jdbc.execute("DROP TRIGGER phase3_fail_at_commit ON inbox_event"); jdbc.execute("DROP FUNCTION phase3_fail()");
         }
-        assertThat(handler.handle(body)).isEqualTo(BillingInboxHandler.Outcome.APPLIED);
+        assertThat(processBillingEvent(body)).isEqualTo(BillingEvent.Outcome.APPLIED);
     }
     @Test void lostAckAfterCommitRedeliversWithoutRepeatingEffect() throws Exception {
         var f = diagnosisFixture(); var body = event(f.order()); var sqs = mock(SqsClient.class);
@@ -113,9 +115,9 @@ class BillingInboxIT extends HttpPostgresSupport {
     }
     @Test void futureCompositionRollsBackAndStaleRevisionIsAudited() throws Exception {
         var f = diagnosisFixture(); var body = event(f.order());
-        assertThatThrownBy(() -> handler.handle(changed(body, "compositionVersion", 4))).isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> processBillingEvent(changed(body, "compositionVersion", 4))).isInstanceOf(RuntimeException.class);
         assertThat(inboxCount()).isZero();
-        assertThat(handler.handle(changed(body, "compositionVersion", 2))).isEqualTo(BillingInboxHandler.Outcome.OBSOLETE);
+        assertThat(processBillingEvent(changed(body, "compositionVersion", 2))).isEqualTo(BillingEvent.Outcome.OBSOLETE);
         assertThat(state(f.order())).isEqualTo("IN_DIAGNOSIS");
     }
     @Test void unavailableBudgetContextAndInvalidPayloadAreNotAcknowledged() throws Exception {
@@ -130,17 +132,17 @@ class BillingInboxIT extends HttpPostgresSupport {
     @Test void parallelDuplicateHasExactlyOneEffect() throws Exception {
         var f = diagnosisFixture(); var body = event(f.order());
         try (var pool = Executors.newFixedThreadPool(2)) {
-            var one = pool.submit(() -> handler.handle(body)); var two = pool.submit(() -> handler.handle(body));
+            var one = pool.submit(() -> processBillingEvent(body)); var two = pool.submit(() -> processBillingEvent(body));
             assertThat(java.util.List.of(one.get(), two.get())).containsExactlyInAnyOrder(
-                    BillingInboxHandler.Outcome.APPLIED, BillingInboxHandler.Outcome.DUPLICATE);
+                    BillingEvent.Outcome.APPLIED, BillingEvent.Outcome.DUPLICATE);
         }
         assertThat(inboxCount()).isEqualTo(1);
     }
     @Test void sameFactUnderNewIdIsIgnoredAndSameRevisionConflictRetries() throws Exception {
-        var f = diagnosisFixture(); var body = event(f.order()); handler.handle(body);
+        var f = diagnosisFixture(); var body = event(f.order()); processBillingEvent(body);
         var replay = body.replace("66000000-0000-4000-8000-000000000001", UUID.randomUUID().toString());
-        assertThat(handler.handle(replay)).isEqualTo(BillingInboxHandler.Outcome.IGNORED);
-        assertThatThrownBy(() -> handler.handle(changed(replay.replace(codec.decode(replay).id().toString(), UUID.randomUUID().toString()),
+        assertThat(processBillingEvent(replay)).isEqualTo(BillingEvent.Outcome.IGNORED);
+        assertThatThrownBy(() -> processBillingEvent(changed(replay.replace(codec.decode(replay).id().toString(), UUID.randomUUID().toString()),
                 "budgetId", UUID.randomUUID()))).hasMessage("BUDGET_COMPOSITION_CONFLICT");
         assertThat(inboxCount()).isEqualTo(2);
         assertThat(state(f.order())).isEqualTo("WAITING_APPROVAL");
@@ -149,21 +151,25 @@ class BillingInboxIT extends HttpPostgresSupport {
         var f = diagnosisFixture(); var body = event(f.order());
         var other = body.replace("66000000-0000-4000-8000-000000000001", UUID.randomUUID().toString());
         try (var pool = Executors.newFixedThreadPool(2)) {
-            var one = pool.submit(() -> handler.handle(body)); var two = pool.submit(() -> handler.handle(other));
+            var one = pool.submit(() -> processBillingEvent(body)); var two = pool.submit(() -> processBillingEvent(other));
             assertThat(java.util.List.of(one.get(10, java.util.concurrent.TimeUnit.SECONDS),
                     two.get(10, java.util.concurrent.TimeUnit.SECONDS))).containsExactlyInAnyOrder(
-                    BillingInboxHandler.Outcome.APPLIED, BillingInboxHandler.Outcome.IGNORED);
+                    BillingEvent.Outcome.APPLIED, BillingEvent.Outcome.IGNORED);
         }
         assertThat(inboxCount()).isEqualTo(2);
     }
     @Test void terminalOrderDoesNotReopenAndUnreconciledSagaDoesNotAdvance() throws Exception {
         var f = diagnosisFixture(); var body = event(f.order());
         jdbc.update("UPDATE service_order_saga SET state='MANUAL_INTERVENTION' WHERE service_order_id=?", f.order());
-        assertThatThrownBy(() -> handler.handle(body)).hasMessage("SAGA_STATE_REQUIRES_RECONCILIATION");
+        assertThatThrownBy(() -> processBillingEvent(body)).hasMessage("SAGA_STATE_REQUIRES_RECONCILIATION");
         assertThat(inboxCount()).isZero();
         // Seed a historical terminal order; public cancellation now uses C1-C6.
         jdbc.update("UPDATE ordem_servico SET status='CANCELLED' WHERE id=?",f.order());
-        assertThat(handler.handle(body)).isEqualTo(BillingInboxHandler.Outcome.IGNORED);
+        assertThat(processBillingEvent(body)).isEqualTo(BillingEvent.Outcome.IGNORED);
         assertThat(jdbc.queryForObject("SELECT status FROM ordem_servico WHERE id=?", String.class, f.order())).isEqualTo("CANCELLED");
+    }
+
+    private BillingEvent.Outcome processBillingEvent(String body) {
+        return handler.process(codec.decode(body));
     }
 }

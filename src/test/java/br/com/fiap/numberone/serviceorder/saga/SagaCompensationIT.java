@@ -1,9 +1,10 @@
 package br.com.fiap.numberone.serviceorder.saga;
 
+import br.com.fiap.numberone.serviceorder.infrastructure.messaging.BillingEventCodec;
 import br.com.fiap.numberone.support.HttpPostgresSupport;
 import br.com.fiap.numberone.serviceorder.application.services.*;
 import br.com.fiap.numberone.serviceorder.application.gateways.*;
-import br.com.fiap.numberone.serviceorder.infrastructure.messaging.BillingInboxHandler;
+import br.com.fiap.numberone.serviceorder.application.services.ProcessBillingEvent;
 import br.com.fiap.numberone.shared.application.gateways.BranchScope;
 import com.sun.net.httpserver.*;
 import org.junit.jupiter.api.*;
@@ -47,7 +48,8 @@ class SagaCompensationIT extends HttpPostgresSupport {
     }
     @Autowired SagaCompensation compensation;
     @Autowired SagaRecoveryWorker worker;
-    @Autowired BillingInboxHandler inbox;
+    @Autowired ProcessBillingEvent inbox;
+    @Autowired BillingEventCodec codec;
     @Autowired InventorySagaGateway inventory;
     @Autowired ServiceOrderGateway orders;
     @Autowired BranchScope branch;
@@ -182,7 +184,7 @@ class SagaCompensationIT extends HttpPostgresSupport {
         for(String type:List.of("OrcamentoEnviado","OrcamentoAprovado")) {
             var event=(ObjectNode)json.readTree(Files.readString(Path.of("doc/contracts/saga/v2/examples",type+".json")));
             event.put("eventId",UUID.randomUUID().toString());var p=(ObjectNode)event.get("payload");p.put("serviceOrderId",f.order().toString());
-            p.put("budgetId",budget.toString());p.put("budgetVersion",1);p.put("compositionVersion",jdbc.queryForObject("SELECT composition_version FROM ordem_servico WHERE id=?",Integer.class,f.order()));inbox.handle(event.toString());
+            p.put("budgetId",budget.toString());p.put("budgetVersion",1);p.put("compositionVersion",jdbc.queryForObject("SELECT composition_version FROM ordem_servico WHERE id=?",Integer.class,f.order()));processBillingEvent(event.toString());
         }
         return f;
     }
@@ -395,5 +397,9 @@ class SagaCompensationIT extends HttpPostgresSupport {
             assertThat(process.waitFor(45,TimeUnit.SECONDS)).as("fresh JVM recovery completed: %s",log).isTrue();
             assertThat(process.exitValue()).as("fresh JVM recovery exit: %s",log).isZero();
         } finally { if(process.isAlive()) { process.destroyForcibly(); } }
+    }
+
+    private void processBillingEvent(String body) {
+        inbox.process(codec.decode(body));
     }
 }

@@ -1,6 +1,7 @@
 package br.com.fiap.numberone.serviceorder.saga;
 
-import br.com.fiap.numberone.serviceorder.infrastructure.messaging.BillingInboxHandler;
+import br.com.fiap.numberone.serviceorder.infrastructure.messaging.BillingEventCodec;
+import br.com.fiap.numberone.serviceorder.application.services.ProcessBillingEvent;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterAll;
@@ -56,7 +57,8 @@ class InventoryI1IT {
     private static HttpServer billing;
 
     @Autowired ObjectMapper json;
-    @Autowired BillingInboxHandler billingInbox;
+    @Autowired ProcessBillingEvent billingInbox;
+    @Autowired BillingEventCodec codec;
     @Value("${local.server.port}") int port;
     private final String correlation = UUID.randomUUID().toString();
     private final Map<String, String> admin = Map.of("X-Authenticated-Subject", UUID.randomUUID().toString(),
@@ -250,7 +252,7 @@ class InventoryI1IT {
             var payload = (ObjectNode) event.path("payload");
             payload.put("serviceOrderId", order).put("budgetId", budget).put("budgetVersion", 1)
                     .put("compositionVersion", composition);
-            billingInbox.handle(event.toString());
+            processBillingEvent(event.toString());
         }
     }
 
@@ -327,4 +329,8 @@ class InventoryI1IT {
 
     private record Forwarded(String method, String path, String key, String correlation, int status) { }
     private record SettlementCall(String path, String correlation, boolean settled) { }
+
+    private void processBillingEvent(String body) {
+        billingInbox.process(codec.decode(body));
+    }
 }

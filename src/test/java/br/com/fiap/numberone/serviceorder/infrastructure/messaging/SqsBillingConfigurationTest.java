@@ -1,5 +1,6 @@
 package br.com.fiap.numberone.serviceorder.infrastructure.messaging;
 
+import br.com.fiap.numberone.serviceorder.application.services.ProcessBillingEvent;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.services.sqs.SqsClient;
@@ -19,7 +20,7 @@ class SqsBillingConfigurationTest {
         try (var client = config.billingSqs("us-east-1", "http://localhost:4566", "dedicated")) {
             assertThat(client).isNotNull();
         }
-        var sqs = mock(SqsClient.class); var handler = mock(BillingInboxHandler.class); var codec = new BillingEventCodec();
+        var sqs = mock(SqsClient.class); var handler = mock(ProcessBillingEvent.class); var codec = new BillingEventCodec();
         var metrics = new SimpleMeterRegistry();
         assertThatThrownBy(() -> config.billingConsumer(sqs, handler, codec, metrics, "")).hasMessage("BILLING_QUEUE_URL_REQUIRED");
         when(sqs.getQueueAttributes(any(Consumer.class))).thenReturn(GetQueueAttributesResponse.builder().attributes(Map.of(

@@ -1,5 +1,6 @@
 package br.com.fiap.numberone.serviceorder.infrastructure.messaging;
 
+import br.com.fiap.numberone.serviceorder.application.events.BillingEvent;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.networknt.schema.*;
@@ -15,8 +16,6 @@ import java.util.*;
 public class BillingEventCodec {
     private final ObjectMapper json = new ObjectMapper().enable(com.fasterxml.jackson.core.JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
     private final Map<String, JsonSchema> schemas = new HashMap<>();
-    public record Event(UUID id, String type, UUID orderId, UUID correlationId,
-                        Instant occurredAt, JsonNode payload, String hash) { }
 
     public BillingEventCodec() {
         try {
@@ -33,7 +32,7 @@ public class BillingEventCodec {
         } catch (IOException ex) { throw new IllegalStateException("CONTRACT_RESOURCE_UNAVAILABLE", ex); }
     }
 
-    public Event decode(String body) {
+    public BillingEvent decode(String body) {
         try {
             var root = json.readTree(body);
             if (root == null || !root.isObject()) { throw new IllegalArgumentException("INVALID_ENVELOPE"); }
@@ -45,9 +44,21 @@ public class BillingEventCodec {
             }
             var hash = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
                     .digest(json.writeValueAsString(canonical(root)).getBytes(StandardCharsets.UTF_8)));
-            return new Event(UUID.fromString(root.path("eventId").asText()), root.path("eventType").asText(),
+            String type = root.path("eventType").asText();
+            var kind = Arrays.stream(BillingEvent.Kind.values())
+                    .filter(candidate -> candidate.wireName().equals(type)).findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("INVALID_BILLING_EVENT"));
+            BillingEvent.Payload payload = switch (kind) {
+                case BUDGET_SENT, BUDGET_APPROVED, BUDGET_REJECTED -> new BillingEvent.Budget(
+                        UUID.fromString(p.path("budgetId").asText()), p.path("budgetVersion").intValue(),
+                        p.path("compositionVersion").intValue(), p.path("approvedAmount").asText(), p.path("currency").asText());
+                case PAYMENT_CONFIRMED, PAYMENT_UPDATED -> new BillingEvent.Payment(
+                        UUID.fromString(p.path("paymentId").asText()), p.path("paymentVersion").intValue(),
+                        p.path("paymentStatus").asText());
+            };
+            return new BillingEvent(UUID.fromString(root.path("eventId").asText()), kind,
                     UUID.fromString(p.path("serviceOrderId").asText()), UUID.fromString(root.path("correlationId").asText()),
-                    Instant.parse(root.path("occurredAt").asText()), p, hash);
+                    Instant.parse(root.path("occurredAt").asText()), payload, hash);
         } catch (IllegalArgumentException ex) { throw ex; }
         catch (Exception ex) { throw new IllegalArgumentException("INVALID_BILLING_EVENT", ex); }
     }
