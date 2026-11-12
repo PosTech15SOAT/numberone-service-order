@@ -1,6 +1,8 @@
 package br.com.fiap.numberone.serviceorder.api.controllers;
 
 import br.com.fiap.numberone.serviceorder.application.services.SagaCompensation;
+import br.com.fiap.numberone.serviceorder.application.gateways.SagaCompensationStore.Request;
+import br.com.fiap.numberone.serviceorder.application.gateways.SagaCompensationStore.Status;
 import br.com.fiap.numberone.serviceorder.application.gateways.ServiceOrderGateway;
 import br.com.fiap.numberone.serviceorder.domain.exceptions.OrderNotFoundException;
 import br.com.fiap.numberone.shared.application.gateways.BranchScope;
@@ -27,24 +29,24 @@ public class SagaCompensationController {
         return UUID.fromString(users.currentUser().orElseThrow(() -> new org.springframework.security.access.AccessDeniedException("UNAUTHENTICATED")).subject());
     }
     @PatchMapping("/ordens-servico/{id}/cancelar")
-    public ResponseEntity<SagaCompensation.Status> cancel(@PathVariable UUID id,@Valid @RequestBody SagaCompensation.Request request) {
+    public ResponseEntity<Status> cancel(@PathVariable UUID id,@Valid @RequestBody Request request) {
         return response(compensation.request(id,request,author(),SagaCorrelation.current()));
     }
     @PatchMapping("/itens-ordem-servico/{id}/cancelar")
-    public ResponseEntity<SagaCompensation.Status> partial(@PathVariable UUID id,@Valid @RequestBody SagaCompensation.Request request) {
+    public ResponseEntity<Status> partial(@PathVariable UUID id,@Valid @RequestBody Request request) {
         UUID order=orders.findByItem(id,branch.id(),false).orElseThrow(OrderNotFoundException::new).getId();
-        var partial=new SagaCompensation.Request("PARTIAL",request.reason(),request.unusedConfirmed(),request.physicallyRemoved(),
+        var partial=new Request("PARTIAL",request.reason(),request.unusedConfirmed(),request.physicallyRemoved(),
                 request.returnConfirmed(),request.verifiedAt(),"item="+id+"; "+request.evidenceReference());
         return response(compensation.request(order,partial,author(),SagaCorrelation.current()));
     }
     @GetMapping("/ordens-servico/{id}/compensacao")
-    public SagaCompensation.Status status(@PathVariable UUID id) { return compensation.status(id); }
+    public Status status(@PathVariable UUID id) { return compensation.status(id); }
     public record Decision(@NotBlank @Size(max=1000) String reason) { }
     @PostMapping("/ordens-servico/{id}/compensacao/retomar")
-    public ResponseEntity<SagaCompensation.Status> resume(@PathVariable UUID id,@Valid @RequestBody Decision decision) {
+    public ResponseEntity<Status> resume(@PathVariable UUID id,@Valid @RequestBody Decision decision) {
         return response(compensation.resume(id,decision.reason(),author()));
     }
-    private ResponseEntity<SagaCompensation.Status> response(SagaCompensation.Status status) {
+    private ResponseEntity<Status> response(Status status) {
         return ResponseEntity.status(status.state().equals("MANUAL_INTERVENTION") ? 409 : status.state().equals("COMPENSATED") ? 200 : 202)
                 .location(URI.create("/api/admin/ordens-servico/"+status.serviceOrderId()+"/compensacao")).body(status);
     }

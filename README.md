@@ -28,6 +28,25 @@ O [pacote v1](doc/contracts/saga/v1/README.md) permanece histórico; o pacote at
 [roteiro da fase 1](doc/progress/demonstracao-fase-1.md) e a
 [entrega aos membros](doc/progress/entrega-fase-1.md).
 
+## Como seguir a Saga no código
+
+A OS orquestra a Saga porque é dona do ciclo de vida da ordem. Billing e
+Inventory confirmam suas próprias operações. A OS recebe eventos de orçamento
+e pagamento por SQS e usa REST para obter confirmações de estoque e quitação
+e para executar as compensações.
+
+| Entrada | Caso de uso | Adaptadores |
+| --- | --- | --- |
+| Iniciar item | `StartServiceOrderItem` prepara a tentativa, chama Inventory e aplica o resultado | `JdbcItemStartStore` e `HttpInventorySagaGateway` |
+| Concluir ou entregar | `FinishServiceOrder` grava a conclusão e consulta o Billing antes da entrega | `JdbcOrderCompletionStore`, outbox de histórico e `HttpBillingSagaGateway` |
+| Evento do Billing | `ProcessBillingEvent` aplica a decisão de orçamento ou a atualização de pagamento | `SqsBillingConsumer`, `BillingEventCodec` e `JdbcBillingInboxStore` |
+| Cancelar ou retomar | `SagaCompensation` resolve estoque, encerra orçamento e conclui o cancelamento | `JdbcSagaCompensationStore` e os clientes REST dos participantes |
+| Recuperar pendências | `SagaRecoveryWorker` retoma a operação a partir do PostgreSQL | `SagaRecoverySchedule` e `JdbcSagaRecoveryStore` |
+
+As chamadas REST acontecem entre transações locais. A inbox grava o evento e
+seu efeito no mesmo commit, antes de confirmar a mensagem ao SQS. O mesmo ID
+de operação é reaproveitado na recuperação de uma resposta perdida.
+
 ## Executar localmente no PowerShell
 
 Docker Desktop com engine Linux; nÃ£o requer JDK no host. O Compose usa banco
