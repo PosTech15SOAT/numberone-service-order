@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.numberone.invalid/saga/v1/commands/ReserveMaterials.schema.json",
+  "title": "ReserveMaterials",
+  "description": "Rascunho v1. os-service -> inventory-service. Não aprovado pela equipe.",
+  "allOf": [
+    {
+      "$ref": "https://contracts.numberone.invalid/saga/v1/envelope.schema.json"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "ReserveMaterials"
+        },
+        "producer": {
+          "const": "os-service"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "budgetRevision": {
+              "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/revision"
+            },
+            "allocations": {
+              "type": "array",
+              "items": {
+                "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/allocation"
+              },
+              "minItems": 1
+            }
+          },
+          "required": [
+            "budgetRevision",
+            "allocations"
+          ],
+          "additionalProperties": true
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    }
+  ]
+}

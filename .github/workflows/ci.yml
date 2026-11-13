@@ -1,14 +1,23 @@
 name: CI
+
 on:
+  workflow_call:
+    inputs:
+      upload_jar:
+        type: boolean
+        default: false
   push:
-    branches: [main, develop]
+    branches: [main, develop, 'feature/**', 'codex/**']
   pull_request:
-    branches: [main, develop, feature/fase-1a-base]
+    branches: [main, develop, feature/fase-1a-base, feature/fase-1b-contratos, feature/integracao, codex/inventory-i2]
+
 permissions:
   contents: read
+
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
+
 jobs:
   test-and-build:
     name: Required validation
@@ -16,30 +25,57 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '25'
           cache: maven
-      - name: Build, technical rules and real HTTP tests
-        run: ./mvnw --batch-mode clean verify
-      - name: Build container image
-        run: docker build --tag numberone-service-order:${{ github.sha }} .
+      - name: Executar testes e exigir 80% de cobertura
+        run: |
+          chmod +x mvnw
+          ./mvnw --batch-mode clean verify
+      - name: Validar os contratos da Saga sem rede
+        run: |
+          docker build -f scripts/contracts.Dockerfile -t os-contract-validation .
+          docker run --rm --network none -v "$PWD:/workspace" os-contract-validation
+      - name: Construir e testar a imagem do JAR validado
+        env:
+          IMAGE_TAG: numberone-service-order:${{ github.sha }}
+        run: |
+          docker build --target verified --tag "$IMAGE_TAG" .
+          bash scripts/smoke-image.sh "$IMAGE_TAG"
       - uses: azure/setup-kubectl@v4
         with:
-          version: v1.36.0
-      - name: Validate manifests
+          version: v1.36.2
+      - name: Renderizar e validar os manifests
+        env:
+          K8S_NAMESPACE: numberone-os
+          IMAGE_URI: registry.example.invalid/numberone-service-order@sha256:0000000000000000000000000000000000000000000000000000000000000000
         run: |
           mkdir -p rendered-manifests
-          kubectl kustomize k8s/base > rendered-manifests/os.yaml
+          kubectl kustomize k8s/base > rendered-manifests/base.yaml
+          bash scripts/render-kubernetes.sh > rendered-manifests/homologation.yaml
           docker run --rm -v "$PWD:/workspace:ro" ghcr.io/yannh/kubeconform:v0.8.0 \
             -strict -summary -kubernetes-version 1.36.0 /workspace/rendered-manifests
-      - uses: actions/upload-artifact@v7
+      - name: Disponibilizar JAR validado para deploy
+        if: inputs.upload_jar
+        uses: actions/upload-artifact@v7
+        with:
+          name: os-application-${{ github.sha }}
+          path: target/numberone-service-order-*.jar
+          if-no-files-found: error
+          retention-days: 1
+      - name: Disponibilizar relatórios e manifests
         if: always()
+        uses: actions/upload-artifact@v7
         with:
           name: validation-reports
           path: |
             target/surefire-reports
             target/failsafe-reports
             target/site/jacoco
+            target/contract-validation.json
             rendered-manifests
+          if-no-files-found: warn

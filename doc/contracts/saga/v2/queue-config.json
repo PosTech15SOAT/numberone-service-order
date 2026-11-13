@@ -1,0 +1,14 @@
+{
+  "queue": "numberone-billing-events",
+  "deadLetterQueue": "numberone-billing-events-dlq",
+  "type": "STANDARD",
+  "longPollingSeconds": 20,
+  "visibilityTimeoutSeconds": 60,
+  "maxReceiveCount": 5,
+  "retentionSeconds": 345600,
+  "deadLetterRetentionSeconds": 1209600,
+  "automaticReplayHorizonDays": 30,
+  "producer": "billing-service",
+  "consumer": "os-service",
+  "provisionedByThisPackage": false
+}

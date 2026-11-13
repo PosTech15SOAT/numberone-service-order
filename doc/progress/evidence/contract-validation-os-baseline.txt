@@ -1,0 +1,27 @@
+test_additive_fields_are_accepted_at_all_object_levels (__main__.ContractChecks.test_additive_fields_are_accepted_at_all_object_levels) ... ok
+test_all_valid_examples_against_typed_and_dispatch_schemas (__main__.ContractChecks.test_all_valid_examples_against_typed_and_dispatch_schemas) ... ok
+test_catalog_covers_every_message_in_original_specification (__main__.ContractChecks.test_catalog_covers_every_message_in_original_specification) ... ok
+test_demonstration_fixtures_are_consistent_not_a_saga_execution (__main__.ContractChecks.test_demonstration_fixtures_are_consistent_not_a_saga_execution) ... ok
+test_format_assertions_are_effectively_enabled (__main__.ContractChecks.test_format_assertions_are_effectively_enabled) ... ok
+test_invalid_examples_fail_at_expected_keyword_and_path (__main__.ContractChecks.test_invalid_examples_fail_at_expected_keyword_and_path) ... ok
+test_openapi_documents (__main__.ContractChecks.test_openapi_documents) ... ok
+test_schema_draft_and_all_references_resolve_without_network (__main__.ContractChecks.test_schema_draft_and_all_references_resolve_without_network) ... ok
+test_active_package_and_catalog_are_explicit (contract_revision_checks.RevisionContractChecks.test_active_package_and_catalog_are_explicit) ... ok
+test_additive_fields_do_not_enable_unknown_types (contract_revision_checks.RevisionContractChecks.test_additive_fields_do_not_enable_unknown_types) ... ok
+test_budget_events_reject_missing_or_invalid_composition_and_zero_approval (contract_revision_checks.RevisionContractChecks.test_budget_events_reject_missing_or_invalid_composition_and_zero_approval) ... ok
+test_composition_is_required_and_stale_fixture_is_structurally_valid (contract_revision_checks.RevisionContractChecks.test_composition_is_required_and_stale_fixture_is_structurally_valid) ... ok
+test_confirmed_integral_refund_is_enabled_and_rejects_partial_status (contract_revision_checks.RevisionContractChecks.test_confirmed_integral_refund_is_enabled_and_rejects_partial_status) ... ok
+test_context_cancellation_and_order_readiness_are_explicit (contract_revision_checks.RevisionContractChecks.test_context_cancellation_and_order_readiness_are_explicit) ... ok
+test_http_fixtures_against_actual_operation_schemas (contract_revision_checks.RevisionContractChecks.test_http_fixtures_against_actual_operation_schemas) ... ok
+test_invalid_event_fixtures_fail_for_expected_reason (contract_revision_checks.RevisionContractChecks.test_invalid_event_fixtures_fail_for_expected_reason) ... ok
+test_network_is_actually_disabled_by_entrypoint (contract_revision_checks.RevisionContractChecks.test_network_is_actually_disabled_by_entrypoint) ... ok
+test_openapi_documents_and_local_references (contract_revision_checks.RevisionContractChecks.test_openapi_documents_and_local_references) ... ok
+test_schemas_and_references_are_offline (contract_revision_checks.RevisionContractChecks.test_schemas_and_references_are_offline) ... ok
+test_source_snapshots_match_recorded_hashes (contract_revision_checks.RevisionContractChecks.test_source_snapshots_match_recorded_hashes) ... ok
+test_valid_event_fixtures (contract_revision_checks.RevisionContractChecks.test_valid_event_fixtures) ... ok
+
+----------------------------------------------------------------------
+Ran 21 tests in 0.679s
+
+OK
+{"scope": "schema-and-fixture-validation-only", "approvedContract": false, "schemaFiles": 24, "messageTypes": 21, "validFixtures": 31, "invalidFixtures": 21, "checks": 21, "failures": 0, "errors": 0, "successful": true, "remoteSchemaRetrieval": "denied", "networkAccess": "denied-by-python-audit-hook", "legacyPackage": "v1 (regression only; original counts above)", "activePackage": {"package": "v2", "packageVersion": "2.0.0-os-baseline.1", "approvedContract": false, "schemaFiles": 9, "enabledEventTypes": 5, "conditionalEventTypes": 0, "validEventFixtures": 6, "invalidEventFixtures": 21, "readyForOsImplementation": true, "conditionalEventFixtures": 0, "proposalFixtures": 2, "openapiDocuments": 4, "validHttpFixtures": 46, "invalidHttpFixtures": 15}}

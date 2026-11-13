@@ -1,0 +1,174 @@
+{
+  "status": "DRAFT",
+  "schemaVersion": 1,
+  "messages": [
+    {
+      "type": "CreateBudget",
+      "kind": "command",
+      "producer": "os-service",
+      "consumer": "billing-service",
+      "schema": "commands/CreateBudget.schema.json",
+      "example": "examples/CreateBudget.json"
+    },
+    {
+      "type": "BudgetSent",
+      "kind": "event",
+      "producer": "billing-service",
+      "consumer": "os-service",
+      "schema": "events/BudgetSent.schema.json",
+      "example": "examples/BudgetSent.json"
+    },
+    {
+      "type": "BudgetCreationFailed",
+      "kind": "event",
+      "producer": "billing-service",
+      "consumer": "os-service",
+      "schema": "events/BudgetCreationFailed.schema.json",
+      "example": "examples/BudgetCreationFailed.json"
+    },
+    {
+      "type": "BudgetNotificationFailed",
+      "kind": "event",
+      "producer": "billing-service",
+      "consumer": "os-service",
+      "schema": "events/BudgetNotificationFailed.schema.json",
+      "example": "examples/BudgetNotificationFailed.json"
+    },
+    {
+      "type": "BudgetApproved",
+      "kind": "event",
+      "producer": "billing-service",
+      "consumer": "os-service",
+      "schema": "events/BudgetApproved.schema.json",
+      "example": "examples/BudgetApproved.json"
+    },
+    {
+      "type": "BudgetRejected",
+      "kind": "event",
+      "producer": "billing-service",
+      "consumer": "os-service",
+      "schema": "events/BudgetRejected.schema.json",
+      "example": "examples/BudgetRejected.json"
+    },
+    {
+      "type": "ReserveMaterials",
+      "kind": "command",
+      "producer": "os-service",
+      "consumer": "inventory-service",
+      "schema": "commands/ReserveMaterials.schema.json",
+      "example": "examples/ReserveMaterials.json"
+    },
+    {
+      "type": "MaterialsReserved",
+      "kind": "event",
+      "producer": "inventory-service",
+      "consumer": "os-service",
+      "schema": "events/MaterialsReserved.schema.json",
+      "example": "examples/MaterialsReserved.json"
+    },
+    {
+      "type": "MaterialsReservationFailed",
+      "kind": "event",
+      "producer": "inventory-service",
+      "consumer": "os-service",
+      "schema": "events/MaterialsReservationFailed.schema.json",
+      "example": "examples/MaterialsReservationFailed.json"
+    },
+    {
+      "type": "RequestPayment",
+      "kind": "command",
+      "producer": "os-service",
+      "consumer": "billing-service",
+      "schema": "commands/RequestPayment.schema.json",
+      "example": "examples/RequestPayment.json"
+    },
+    {
+      "type": "PaymentPending",
+      "kind": "event",
+      "producer": "billing-service",
+      "consumer": "os-service",
+      "schema": "events/PaymentPending.schema.json",
+      "example": "examples/PaymentPending.json"
+    },
+    {
+      "type": "PaymentConfirmed",
+      "kind": "event",
+      "producer": "billing-service",
+      "consumer": "os-service",
+      "schema": "events/PaymentConfirmed.schema.json",
+      "example": "examples/PaymentConfirmed.json"
+    },
+    {
+      "type": "PaymentFailed",
+      "kind": "event",
+      "producer": "billing-service",
+      "consumer": "os-service",
+      "schema": "events/PaymentFailed.schema.json",
+      "example": "examples/PaymentFailed.json"
+    },
+    {
+      "type": "ConsumeMaterials",
+      "kind": "command",
+      "producer": "os-service",
+      "consumer": "inventory-service",
+      "schema": "commands/ConsumeMaterials.schema.json",
+      "example": "examples/ConsumeMaterials.json"
+    },
+    {
+      "type": "MaterialsConsumed",
+      "kind": "event",
+      "producer": "inventory-service",
+      "consumer": "os-service",
+      "schema": "events/MaterialsConsumed.schema.json",
+      "example": "examples/MaterialsConsumed.json"
+    },
+    {
+      "type": "MaterialsConsumptionFailed",
+      "kind": "event",
+      "producer": "inventory-service",
+      "consumer": "os-service",
+      "schema": "events/MaterialsConsumptionFailed.schema.json",
+      "example": "examples/MaterialsConsumptionFailed.json"
+    },
+    {
+      "type": "ReleaseMaterials",
+      "kind": "command",
+      "producer": "os-service",
+      "consumer": "inventory-service",
+      "schema": "commands/ReleaseMaterials.schema.json",
+      "example": "examples/ReleaseMaterials.json"
+    },
+    {
+      "type": "MaterialsReleased",
+      "kind": "event",
+      "producer": "inventory-service",
+      "consumer": "os-service",
+      "schema": "events/MaterialsReleased.schema.json",
+      "example": "examples/MaterialsReleased.json"
+    },
+    {
+      "type": "MaterialsAlreadyConsumed",
+      "kind": "event",
+      "producer": "inventory-service",
+      "consumer": "os-service",
+      "schema": "events/MaterialsAlreadyConsumed.schema.json",
+      "example": "examples/MaterialsAlreadyConsumed.json"
+    },
+    {
+      "type": "CancelBilling",
+      "kind": "command",
+      "producer": "os-service",
+      "consumer": "billing-service",
+      "schema": "commands/CancelBilling.schema.json",
+      "example": "examples/CancelBilling.json"
+    },
+    {
+      "type": "BillingCompensated",
+      "kind": "event",
+      "producer": "billing-service",
+      "consumer": "os-service",
+      "schema": "events/BillingCompensated.schema.json",
+      "example": "examples/BillingCompensated.json"
+    }
+  ]
+}

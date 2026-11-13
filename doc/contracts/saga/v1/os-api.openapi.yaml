@@ -1,0 +1,422 @@
+openapi: 3.0.3
+info:
+  title: NumberOne — mudanças HTTP planejadas da OS
+  version: 1.0.0-draft
+  description: Contrato proposto, controllers não implementados na fase 1. Identidade
+    validada pelo Gateway; aplicação usa contexto confiável e verifica permissão,
+    posse e filial.
+servers:
+- url: https://gateway.example.invalid
+security:
+- GatewayIdentity: []
+paths:
+  /internal/v1/customers/lookup:
+    post:
+      operationId: lookupCustomerForAuth
+      security:
+      - ServiceIdentity: []
+      description: Proposta para substituir lookup SQL de cliente pelo auth. POST
+        evita documento pessoal na URL. Não registrar body/identificador; consumidor
+        restrito ao auth. Implementação e transição são dependências de Marcelo, não
+        desta fase.
+      parameters:
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                documentType:
+                  type: string
+                  enum:
+                  - CPF
+                document:
+                  type: string
+                  pattern: ^[0-9]{11}$
+                  writeOnly: true
+              required:
+              - documentType
+              - document
+              additionalProperties: true
+      responses:
+        '200':
+          description: Somente identidade cadastral mínima, sem dados RBAC
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  customerId:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    enum:
+                    - ACTIVE
+                    - INACTIVE
+                required:
+                - customerId
+                - status
+                additionalProperties: true
+        '400':
+          description: Formato inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Identidade de serviço inválida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Consumidor não autorizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Cliente não encontrado; não autorizar login
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: Lookup indisponível; não recorrer ao banco OS
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/admin/itens-ordem-servico/{id}/iniciar:
+    patch:
+      operationId: requestServiceOrderItemStart
+      description: 'Com materiais: 202 após gravar START_REQUESTED e futura outbox
+        atomicamente. Somente MaterialsConsumed confirma IN_PROGRESS. Sem materiais:
+        200 após guardas e transação local. Repetir Idempotency-Key mantém operationId;
+        corpo divergente para a mesma chave retorna 409. Preserva o PATCH/caminho
+        legado; corpo e Idempotency-Key obrigatórios são mudanças incompatíveis propostas,
+        exigindo versionamento ou migração coordenada de clientes antes de publicação.'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                attemptId:
+                  type: string
+                  format: uuid
+                budgetRevision:
+                  type: integer
+                  minimum: 1
+              required:
+              - attemptId
+              - budgetRevision
+              additionalProperties: true
+      responses:
+        '200':
+          description: Item já iniciado por esta operação, ou início local sem materiais
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemStarted'
+        '202':
+          description: Início solicitado; ainda não executando
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StartRequested'
+          headers:
+            Location:
+              description: URL de acompanhamento da OS
+              schema:
+                type: string
+        '400':
+          description: Requisição inválida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Gateway rejeitou identidade
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Permissão/filial inválida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: OS/item não encontrado ou inacessível
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Pagamento não confirmado, revisão/tentativa obsoleta, compensação
+            ou conflito de idempotência
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /api/public/ordens-servico/{id}/acompanhamento:
+    get:
+      operationId: getServiceOrderTracking
+      description: Preserva intenção da rota atual; public no caminho NÃO significa
+        acesso anônimo. Gateway autentica; OS verifica posse/filial. Não retornar
+        contato, token, referência do provedor ou preço mutável externo.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      responses:
+        '200':
+          description: Visão local do andamento
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tracking'
+        '401':
+          description: Identidade ausente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Acesso não permitido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: OS não encontrada ou inacessível
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+components:
+  securitySchemes:
+    GatewayIdentity:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Validado pelo Gateway existente, nunca emitido por esta OS. Headers
+        sobrescritos na entrada e acesso direto restrito.
+    ServiceIdentity:
+      type: http
+      scheme: bearer
+      description: 'PROPOSTA: credencial de serviço, nunca JWT de cliente. Emissão,
+        audiência, rotação e rede/mTLS a validar com Marcelo. Sem implementação nesta
+        fase.'
+  schemas:
+    Problem:
+      type: object
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        correlationId:
+          type: string
+      required:
+      - type
+      - title
+      - status
+      additionalProperties: true
+    Tracking:
+      type: object
+      properties:
+        branchId:
+          type: string
+          format: uuid
+        attemptId:
+          type: string
+          format: uuid
+        budgetRevision:
+          type: integer
+          minimum: 1
+        sagaState:
+          type: string
+          enum:
+          - IN_DIAGNOSIS
+          - WAITING_BUDGET
+          - WAITING_APPROVAL
+          - WAITING_RESERVATION
+          - WAITING_PAYMENT
+          - READY_FOR_EXECUTION
+          - WAITING_CONSUMPTION
+          - COMPLETED
+          - COMPENSATING
+          - COMPENSATED
+          - MANUAL_INTERVENTION
+        id:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        itensServico:
+          type: array
+          items:
+            type: object
+            properties:
+              status:
+                $ref: '#/components/schemas/ItemStatus'
+              startOperationId:
+                type: string
+                format: uuid
+              id:
+                type: string
+                format: uuid
+              executionState:
+                $ref: '#/components/schemas/ExecutionState'
+            required:
+            - id
+            - status
+            - executionState
+            additionalProperties: true
+      required:
+      - id
+      - branchId
+      - attemptId
+      - status
+      - sagaState
+      - itensServico
+      additionalProperties: true
+      description: Projeção dos campos afetados pela Saga; campos cadastrais existentes
+        não são removidos por este schema. Compatibilidade completa do DTO será revisada
+        na extração, sem dados pessoais em eventos/logs.
+    StartRequested:
+      type: object
+      properties:
+        operationId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+          - INICIO_SOLICITADO
+        id:
+          type: string
+          format: uuid
+        idOrdemServico:
+          type: string
+          format: uuid
+        executionState:
+          type: string
+          enum:
+          - START_REQUESTED
+      required:
+      - id
+      - idOrdemServico
+      - operationId
+      - status
+      - executionState
+      additionalProperties: true
+    ItemStarted:
+      type: object
+      properties:
+        operationId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+          - EM_EXECUCAO
+        id:
+          type: string
+          format: uuid
+        idOrdemServico:
+          type: string
+          format: uuid
+        executionState:
+          type: string
+          enum:
+          - IN_PROGRESS
+      required:
+      - id
+      - idOrdemServico
+      - operationId
+      - status
+      - executionState
+      additionalProperties: true
+    OrderStatus:
+      type: string
+      enum:
+      - RECEBIDA
+      - EM_DIAGNOSTICO
+      - AGUARDANDO_APROVACAO
+      - APROVADA
+      - REJEITADA
+      - PRONTA_PARA_EXECUCAO
+      - EM_EXECUCAO
+      - FINALIZADA
+      - CANCELADA
+      - ENTREGUE
+      description: Valores HTTP existentes preservados. Novo PRONTA_PARA_EXECUCAO
+        corresponde a READY_FOR_EXECUTION no domínio, sujeito a aceite.
+    ItemStatus:
+      type: string
+      enum:
+      - PENDENTE
+      - AGUARDANDO_PECAS_E_INSUMOS
+      - INICIO_SOLICITADO
+      - EM_EXECUCAO
+      - CANCELADO
+      - FINALIZADO
+      description: Valores HTTP existentes preservados. Novo INICIO_SOLICITADO corresponde
+        a START_REQUESTED.
+    ExecutionState:
+      type: string
+      enum:
+      - PENDING
+      - WAITING_FOR_PARTS_AND_SUPPLIES
+      - START_REQUESTED
+      - IN_PROGRESS
+      - CANCELLED
+      - COMPLETED
+      description: Novo campo técnico explícito; não substitui o status HTTP em português.

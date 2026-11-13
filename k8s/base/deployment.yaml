@@ -1,9 +1,14 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: numberone-service-order
+  name: numberone-os
 spec:
   replicas: 1
+  revisionHistoryLimit: 3
+  progressDeadlineSeconds: 600
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxSurge: 1, maxUnavailable: 0}
   selector:
     matchLabels:
       app.kubernetes.io/name: numberone-service-order
@@ -12,20 +17,40 @@ spec:
       labels:
         app.kubernetes.io/name: numberone-service-order
     spec:
+      serviceAccountName: numberone-os
       automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 45
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
         runAsGroup: 10001
+        fsGroup: 10001
         seccompProfile:
           type: RuntimeDefault
       containers:
         - name: os
           image: image.invalid/numberone-service-order:review-required
+          imagePullPolicy: IfNotPresent
           ports:
             - name: http
               containerPort: 8080
+          envFrom:
+            - configMapRef: {name: numberone-os-config}
+            - configMapRef: {name: numberone-os-runtime}
+            - secretRef: {name: numberone-os-integrations, optional: true}
           env:
+            - name: DB_URL
+              valueFrom:
+                secretKeyRef: {name: numberone-os-database, key: url}
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef: {name: numberone-os-database, key: username}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: numberone-os-database, key: password}
+            - name: OS_BRANCH_ID
+              valueFrom:
+                configMapKeyRef: {name: numberone-os-runtime, key: branch-id}
             - name: DD_SERVICE
               value: numberone-service-order
             - name: DD_ENV
@@ -58,8 +83,9 @@ spec:
           readinessProbe:
             httpGet: {path: /actuator/health/readiness, port: http}
             periodSeconds: 10
+            timeoutSeconds: 3
           volumeMounts:
             - {name: tmp, mountPath: /tmp}
       volumes:
         - name: tmp
-          emptyDir: {}
+          emptyDir: {sizeLimit: 128Mi}

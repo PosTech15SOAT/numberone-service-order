@@ -1,0 +1,8 @@
+{
+  "code": "NOT_SETTLED",
+  "message": "Tentativa fechada.",
+  "correlationId": "77000000-0000-4000-8000-000000000001",
+  "operationId": "00000008-0000-4000-8000-000000000001",
+  "status": 409,
+  "errors": []
+}

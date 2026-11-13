@@ -1,12 +1,36 @@
 name: numberone-os-local
 services:
+  postgres:
+    image: postgres:17-alpine
+    # Constraint errors must not log SQL statements or rejected row contents.
+    command: [postgres, -c, log_min_error_statement=panic, -c, log_error_verbosity=terse]
+    environment:
+      POSTGRES_DB: service_order_db
+      POSTGRES_USER: os_local
+      POSTGRES_PASSWORD: local-development-only
+    volumes:
+      - os-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U os_local -d service_order_db"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
   os:
     image: numberone-service-order:local
     build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "127.0.0.1:${OS_HTTP_PORT:-18080}:8080"
     environment:
       SPRING_PROFILES_ACTIVE: local
+      DB_URL: jdbc:postgresql://postgres:5432/service_order_db
+      DB_USERNAME: os_local
+      DB_PASSWORD: local-development-only
+      OS_BRANCH_ID: ${OS_BRANCH_ID:-40000000-0000-4000-8000-000000000001}
+      IDENTITY_PROVIDER: local
+      APP_MATERIAL_REFERENCE_PROVIDER: ${MATERIAL_REFERENCE_PROVIDER:-unavailable}
       DD_SERVICE: ${DD_SERVICE:-numberone-service-order}
       DD_ENV: ${DD_ENV:-local}
       DD_TRACE_ENABLED: ${DD_TRACE_ENABLED:-false}
@@ -18,3 +42,5 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
+volumes:
+  os-postgres:

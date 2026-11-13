@@ -1,0 +1,130 @@
+{
+  "cases": [
+    {
+      "file": "missing-event-id.json",
+      "type": "OrcamentoEnviado",
+      "keyword": "required",
+      "pointer": "/"
+    },
+    {
+      "file": "missing-os.json",
+      "type": "OrcamentoAprovado",
+      "keyword": "required",
+      "pointer": "/payload"
+    },
+    {
+      "file": "invalid-uuid.json",
+      "type": "OrcamentoEnviado",
+      "keyword": "format",
+      "pointer": "/eventId"
+    },
+    {
+      "file": "invalid-correlation.json",
+      "type": "OrcamentoEnviado",
+      "keyword": "format",
+      "pointer": "/correlationId"
+    },
+    {
+      "file": "invalid-entity-id.json",
+      "type": "OrcamentoAprovado",
+      "keyword": "format",
+      "pointer": "/payload/budgetId"
+    },
+    {
+      "file": "invalid-calendar-date.json",
+      "type": "OrcamentoEnviado",
+      "keyword": "format",
+      "pointer": "/occurredAt"
+    },
+    {
+      "file": "non-utc-date.json",
+      "type": "OrcamentoEnviado",
+      "keyword": "pattern",
+      "pointer": "/occurredAt"
+    },
+    {
+      "file": "numeric-money.json",
+      "type": "OrcamentoAprovado",
+      "keyword": "type",
+      "pointer": "/payload/approvedAmount"
+    },
+    {
+      "file": "negative-money.json",
+      "type": "OrcamentoAprovado",
+      "keyword": "pattern",
+      "pointer": "/payload/approvedAmount"
+    },
+    {
+      "file": "money-precision.json",
+      "type": "OrcamentoAprovado",
+      "keyword": "pattern",
+      "pointer": "/payload/approvedAmount"
+    },
+    {
+      "file": "invalid-budget-version.json",
+      "type": "OrcamentoRejeitado",
+      "keyword": "minimum",
+      "pointer": "/payload/budgetVersion"
+    },
+    {
+      "file": "fractional-revision.json",
+      "type": "OrcamentoEnviado",
+      "keyword": "type",
+      "pointer": "/payload/budgetVersion"
+    },
+    {
+      "file": "invalid-payment-version.json",
+      "type": "PagamentoConfirmado",
+      "keyword": "minimum",
+      "pointer": "/payload/paymentVersion"
+    },
+    {
+      "file": "wrong-event-type.json",
+      "type": "OrcamentoEnviado",
+      "keyword": "const",
+      "pointer": "/eventType"
+    },
+    {
+      "file": "unsupported-schema-version.json",
+      "type": "OrcamentoEnviado",
+      "keyword": "const",
+      "pointer": "/schemaVersion"
+    },
+    {
+      "file": "wrong-payment-status.json",
+      "type": "PagamentoConfirmado",
+      "keyword": "const",
+      "pointer": "/payload/paymentStatus"
+    },
+    {
+      "file": "missing-currency.json",
+      "type": "OrcamentoAprovado",
+      "keyword": "required",
+      "pointer": "/payload"
+    },
+    {
+      "file": "missing-composition-OrcamentoEnviado.json",
+      "type": "OrcamentoEnviado",
+      "keyword": "required",
+      "pointer": "/payload"
+    },
+    {
+      "file": "missing-composition-OrcamentoAprovado.json",
+      "type": "OrcamentoAprovado",
+      "keyword": "required",
+      "pointer": "/payload"
+    },
+    {
+      "file": "missing-composition-OrcamentoRejeitado.json",
+      "type": "OrcamentoRejeitado",
+      "keyword": "required",
+      "pointer": "/payload"
+    },
+    {
+      "file": "zero-approved-amount.json",
+      "type": "OrcamentoAprovado",
+      "keyword": "not",
+      "pointer": "/payload/approvedAmount"
+    }
+  ]
+}

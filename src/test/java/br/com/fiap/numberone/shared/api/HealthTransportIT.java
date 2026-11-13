@@ -14,7 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("local")
-class HealthTransportIT {
+class HealthTransportIT extends br.com.fiap.numberone.support.PostgresSupport {
     @Value("${local.server.port}")
     private int port;
     private final HttpClient client = HttpClient.newHttpClient();
@@ -55,14 +55,14 @@ class HealthTransportIT {
         var response = client.send(request(path).header("X-Correlation-Id", "demo-denied")
                 .header("X-Authenticated-Subject", "fixture-subject")
                 .header("X-Authenticated-Roles", "ADMIN").GET().build(), HttpResponse.BodyHandlers.ofString());
-        assertThat(response.statusCode()).isEqualTo(403);
-        assertThat(response.body()).contains("Access denied").doesNotContain("fixture-subject");
+        assertThat(response.statusCode()).isEqualTo(401);
+        assertThat(response.body()).contains("Authentication required").doesNotContain("fixture-subject");
     }
 
     @Test
     void stateChangingRequestsRemainDenied() throws Exception {
         var response = client.send(request("/api/admin/ordens-servico").header("X-Correlation-Id", "demo-post")
                 .POST(HttpRequest.BodyPublishers.ofString("{}")).build(), HttpResponse.BodyHandlers.ofString());
-        assertThat(response.statusCode()).isEqualTo(403);
+        assertThat(response.statusCode()).isEqualTo(401);
     }
 }

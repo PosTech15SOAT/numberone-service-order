@@ -1,0 +1,22 @@
+{
+  "date": "2026-11-01",
+  "sourceRevision": "42b393cb66c9d0a62cf14f80dcfc37745ce09e7e",
+  "baseRevision": "c73dfb2",
+  "unitTests": 106,
+  "integrationTests": 28,
+  "postgresPersistenceTests": 6,
+  "httpTransportTests": 22,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "lineCoverage": {
+    "covered": 1164,
+    "minimum": 0.8,
+    "missed": 75
+  },
+  "postgres": "17.9",
+  "liveBillingInventoryIntegration": false,
+  "matheusReview": "pending",
+  "phaseComplete": false,
+  "cloudDeployment": false
+}
