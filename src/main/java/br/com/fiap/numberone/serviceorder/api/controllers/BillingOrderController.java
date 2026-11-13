@@ -1,5 +1,7 @@
 package br.com.fiap.numberone.serviceorder.api.controllers;
 
+import br.com.fiap.numberone.customer.application.gateways.CustomerGateway;
+import br.com.fiap.numberone.customer.domain.entities.Customer;
 import br.com.fiap.numberone.serviceorder.application.gateways.ServiceOrderGateway;
 import br.com.fiap.numberone.serviceorder.domain.entities.CompositionSnapshot;
 import br.com.fiap.numberone.serviceorder.domain.exceptions.*;
@@ -19,8 +21,15 @@ public class BillingOrderController {
     private final BranchScope branch;
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
-    public BillingOrderController(ServiceOrderGateway orders, BranchScope branch, JdbcTemplate jdbc, ObjectMapper json) {
-        this.orders = orders; this.branch = branch; this.jdbc = jdbc; this.json = json;
+    private final CustomerGateway customers;
+
+    public BillingOrderController(ServiceOrderGateway orders, BranchScope branch, JdbcTemplate jdbc,
+                                  ObjectMapper json, CustomerGateway customers) {
+        this.orders = orders;
+        this.branch = branch;
+        this.jdbc = jdbc;
+        this.json = json;
+        this.customers = customers;
     }
     @GetMapping("/{id}")
     public Map<String,Object> state(@PathVariable UUID id) {
@@ -38,6 +47,13 @@ public class BillingOrderController {
         if (snapshots.isEmpty()) { throw new OrderNotFoundException(); }
         var items = json.readValue(snapshots.getFirst(), CompositionSnapshot.Item[].class);
         if (items.length == 0) { throw new OrderRuleException("EMPTY_COMPOSITION"); }
-        return Map.of("serviceOrderId", id, "status", o.getStatus().name(), "compositionVersion", version, "items", items);
+        Map<String, Object> context = new LinkedHashMap<>();
+        context.put("serviceOrderId", id);
+        context.put("status", o.getStatus().name());
+        context.put("compositionVersion", version);
+        context.put("items", items);
+        customers.findById(o.getCustomerId()).map(Customer::getEmail)
+                .ifPresent(email -> context.put("customerEmail", email));
+        return context;
     }
 }
