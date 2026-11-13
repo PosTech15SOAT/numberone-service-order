@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: numberone-service-order
+  name: numberone-os
 spec:
   replicas: 1
   revisionHistoryLimit: 3

@@ -53,7 +53,7 @@ jobs:
             fi
           done
           [[ "$AWS_ACCOUNT_ID" =~ ^[0-9]{12}$ ]]
-          [[ "$ECR_REPOSITORY" == numberone-service-order ]]
+          [[ "$ECR_REPOSITORY" == numberone-os ]]
           [[ "$K8S_NAMESPACE" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$ ]]
           [[ "$DB_APP_USERNAME" =~ ^[a-z_][a-z0-9_]*$ ]]
           [[ "$DB_SECRET_ARN" == "arn:aws:secretsmanager:$AWS_REGION:$AWS_ACCOUNT_ID:secret:"* ]]
@@ -172,8 +172,8 @@ jobs:
             fi
           done
           kubectl apply -f "$runtime/manifests.yaml"
-          kubectl -n "$K8S_NAMESPACE" rollout status deployment/numberone-service-order --timeout=10m
-          deployed="$(kubectl -n "$K8S_NAMESPACE" get deployment numberone-service-order \
+          kubectl -n "$K8S_NAMESPACE" rollout status deployment/numberone-os --timeout=10m
+          deployed="$(kubectl -n "$K8S_NAMESPACE" get deployment numberone-os \
             -o jsonpath='{.spec.template.spec.containers[?(@.name=="os")].image}')"
           [[ "$deployed" == "$IMAGE_URI" ]]
 
