@@ -71,6 +71,8 @@ e cria uma nova OS por execuÃ§Ã£o. Readiness inclui PostgreSQL; liveness sÃ
 
 ## Compilar e conferir
 
+Veja [Docker, Kubernetes e CI/CD](k8s/README.md) para validar a imagem e preparar o deploy de homologação.
+
 Com JDK 25 e Docker: `./mvnw clean verify` (Linux) ou `./mvnw.cmd clean verify`
 (PowerShell). Com Java em container, no Docker Desktop:
 

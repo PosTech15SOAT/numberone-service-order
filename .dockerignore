@@ -1,9 +1,17 @@
 .git
 .env*
 target
+!target/
+target/*
+!target/numberone-service-order-*.jar
 .venv
 __pycache__
 *.log
 doc
+!doc/
+doc/*
+!doc/contracts/
+doc/contracts/*
+!doc/contracts/saga/
 scripts
 k8s

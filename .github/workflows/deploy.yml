@@ -1,0 +1,213 @@
+name: Deploy manual os
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: os-deploy-homologation
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validar o commit antes de publicar
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/ci.yml
+    with:
+      upload_jar: true
+
+  deploy:
+    name: Publicar e implantar em homologação
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: homologation
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+      ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+      EKS_CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME }}
+      K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
+      DB_IDENTIFIER: ${{ vars.DB_IDENTIFIER }}
+      DB_SECRET_ARN: ${{ vars.DB_SECRET_ARN }}
+      DB_APP_USERNAME: ${{ vars.DB_APP_USERNAME }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Validar parâmetros do ambiente protegido
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+        run: |
+          set -euo pipefail
+          for name in AWS_REGION AWS_ACCOUNT_ID ECR_REPOSITORY EKS_CLUSTER_NAME K8S_NAMESPACE DB_IDENTIFIER DB_SECRET_ARN DB_APP_USERNAME AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::$name precisa ser configurado no environment homologation."
+              exit 1
+            fi
+          done
+          [[ "$AWS_ACCOUNT_ID" =~ ^[0-9]{12}$ ]]
+          [[ "$ECR_REPOSITORY" == numberone-os ]]
+          [[ "$K8S_NAMESPACE" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$ ]]
+          [[ "$DB_APP_USERNAME" =~ ^[a-z_][a-z0-9_]*$ ]]
+          [[ "$DB_SECRET_ARN" == "arn:aws:secretsmanager:$AWS_REGION:$AWS_ACCOUNT_ID:secret:"* ]]
+          echo "KUBECONFIG=$RUNNER_TEMP/os-kubeconfig" >> "$GITHUB_ENV"
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: os-application-${{ github.sha }}
+          path: target
+
+      - uses: aws-actions/configure-aws-credentials@v6.2.3
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+          allowed-account-ids: ${{ env.AWS_ACCOUNT_ID }}
+
+      - name: Validar ECR e EKS da conta configurada
+        id: aws
+        run: |
+          set -euo pipefail
+          expected_uri="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY"
+          repository_uri="$(aws ecr describe-repositories --repository-names "$ECR_REPOSITORY" \
+            --query 'repositories[0].repositoryUri' --output text)"
+          [[ "$repository_uri" == "$expected_uri" ]]
+          aws eks describe-cluster --name "$EKS_CLUSTER_NAME" --query cluster --output json \
+            | jq -e --arg arn "arn:aws:eks:$AWS_REGION:$AWS_ACCOUNT_ID:cluster/$EKS_CLUSTER_NAME" \
+                '.arn == $arn and .status == "ACTIVE" and (.version | test("^1\\.[0-9]+$"))' >/dev/null
+          version="$(aws eks describe-cluster --name "$EKS_CLUSTER_NAME" --query cluster.version --output text)"
+          echo "kubectl=v$version.0" >> "$GITHUB_OUTPUT"
+          echo "ECR_URI=$repository_uri" >> "$GITHUB_ENV"
+
+      - uses: azure/setup-kubectl@v4
+        with:
+          version: ${{ steps.aws.outputs.kubectl }}
+
+      - name: Verificar namespace e configuração runtime
+        id: cluster
+        run: |
+          set -euo pipefail
+          aws eks update-kubeconfig --name "$EKS_CLUSTER_NAME" --region "$AWS_REGION"
+          kubectl get namespace "$K8S_NAMESPACE" -o name
+          branch="$(kubectl -n "$K8S_NAMESPACE" get configmap numberone-os-runtime -o jsonpath='{.data.branch-id}')"
+          [[ "$branch" =~ ^[a-fA-F0-9]{8}(-[a-fA-F0-9]{4}){3}-[a-fA-F0-9]{12}$ ]]
+
+      - name: Validar credencial exclusiva do banco
+        run: |
+          set -euo pipefail
+          set +x
+          umask 077
+          runtime="$(mktemp -d)"
+          trap 'rm -rf "$runtime"' EXIT
+          aws rds describe-db-instances --db-instance-identifier "$DB_IDENTIFIER" \
+            --query 'DBInstances[0]' --output json > "$runtime/rds.json"
+          jq -e --arg secret "$DB_SECRET_ARN" '
+            .DBInstanceStatus == "available" and .Engine == "postgres"
+            and (.Endpoint.Address | type == "string" and length > 0)
+            and (.Endpoint.Port | type == "number")
+            and (.MasterUsername | type == "string" and length > 0)
+            and .MasterUserSecret.SecretArn != $secret
+          ' "$runtime/rds.json" >/dev/null
+          aws secretsmanager get-secret-value --secret-id "$DB_SECRET_ARN" \
+            --query SecretString --output text > "$runtime/credentials.json"
+          if ! jq -e --arg username "$DB_APP_USERNAME" --slurpfile rds "$runtime/rds.json" '
+            .username == $username and .username != $rds[0].MasterUsername
+            and (.password | type == "string" and length > 0)
+          ' "$runtime/credentials.json" >/dev/null 2>&1; then
+            echo "::error::O Secret precisa conter a credencial exclusiva da aplicação."
+            exit 1
+          fi
+
+      - uses: aws-actions/amazon-ecr-login@v2.1.6
+
+      - name: Publicar imagem do JAR validado
+        id: image
+        run: |
+          set -euo pipefail
+          image_tag="$GITHUB_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          docker build --target verified --tag "$ECR_URI:$image_tag" .
+          docker push "$ECR_URI:$image_tag"
+          digest="$(aws ecr describe-images --repository-name "$ECR_REPOSITORY" \
+            --image-ids "imageTag=$image_tag" --query 'imageDetails[0].imageDigest' --output text)"
+          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+          echo "uri=$ECR_URI@$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Validar e aplicar os recursos do serviço
+        env:
+          IMAGE_URI: ${{ steps.image.outputs.uri }}
+        run: |
+          set -euo pipefail
+          set +x
+          umask 077
+          runtime="$(mktemp -d)"
+          trap 'rm -rf "$runtime"' EXIT
+          read -r host port < <(aws rds describe-db-instances --db-instance-identifier "$DB_IDENTIFIER" \
+            --query 'DBInstances[0].Endpoint.[Address,Port]' --output text)
+          aws secretsmanager get-secret-value --secret-id "$DB_SECRET_ARN" \
+            --query SecretString --output text \
+            | jq -e --arg namespace "$K8S_NAMESPACE" --arg expected "$DB_APP_USERNAME" \
+                --arg url "jdbc:postgresql://$host:$port/numberone_os?sslmode=require" '
+                select(.username == $expected and (.password | type == "string" and length > 0)) | {
+                  apiVersion: "v1", kind: "Secret", type: "Opaque",
+                  metadata: {name: "numberone-os-database", namespace: $namespace},
+                  stringData: {url: $url, username: .username, password: .password}
+                }' > "$runtime/database.json" 2>/dev/null
+          bash scripts/render-kubernetes.sh > "$runtime/manifests.yaml"
+          kubectl apply --dry-run=server -f "$runtime/manifests.yaml"
+          for mode in dry-run apply; do
+            arguments=()
+            if [[ "$mode" == dry-run ]]; then arguments+=(--dry-run=server); fi
+            if ! kubectl apply --server-side --field-manager=numberone-os-deploy "${arguments[@]}" \
+                 -f "$runtime/database.json" >/dev/null 2>&1; then
+              echo "::error::Falha ao validar ou sincronizar o Secret exclusivo do serviço."
+              exit 1
+            fi
+          done
+          kubectl apply -f "$runtime/manifests.yaml"
+          kubectl -n "$K8S_NAMESPACE" rollout status deployment/numberone-os --timeout=10m
+          deployed="$(kubectl -n "$K8S_NAMESPACE" get deployment numberone-os \
+            -o jsonpath='{.spec.template.spec.containers[?(@.name=="os")].image}')"
+          [[ "$deployed" == "$IMAGE_URI" ]]
+
+      - name: Verificar health por HTTP via port-forward
+        run: |
+          set -euo pipefail
+          kubectl -n "$K8S_NAMESPACE" port-forward --address 127.0.0.1 \
+            service/numberone-os-service 18080:8080 > "$RUNNER_TEMP/os-port-forward.log" 2>&1 &
+          forward_pid=$!
+          trap 'kill "$forward_pid" 2>/dev/null || true' EXIT
+          for _ in {1..30}; do
+            healthy=true
+            for path in health/liveness health/readiness health; do
+              if ! curl -fsS --max-time 5 "http://127.0.0.1:18080/actuator/$path" 2>/dev/null \
+                | jq -e '.status == "UP"' >/dev/null; then
+                healthy=false
+                break
+              fi
+            done
+            if [[ "$healthy" == true ]]; then exit 0; fi
+            sleep 2
+          done
+          echo "::error::Smoke HTTP de health não passou."
+          exit 1
+
+      - name: Registrar commit, imagem e ambiente
+        if: always() && steps.image.outcome == 'success'
+        env:
+          IMAGE_URI: ${{ steps.image.outputs.uri }}
+          RESULT: ${{ job.status }}
+        run: |
+          printf '### Deploy os\n\n- Commit %s\n- Imagem %s\n- Namespace %s\n- Resultado %s\n' \
+            "$GITHUB_SHA" "$IMAGE_URI" "$K8S_NAMESPACE" "$RESULT" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Coletar estado do rollout
+        if: failure() && steps.cluster.outcome == 'success'
+        run: kubectl -n "$K8S_NAMESPACE" get deployment,pods,service -l app.kubernetes.io/name=numberone-service-order
