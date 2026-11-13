@@ -141,7 +141,7 @@ public class ServiceOrder {
                 .map(i -> new CompositionSnapshot.Item(i.getId(), i.getAutomotiveServiceId(), i.getQuantity(), i.isOptional(),
                         i.getLaborUnitPrice().multiply(BigDecimal.valueOf(i.getQuantity())).setScale(2).toPlainString(),
                         i.getMaterials().stream().sorted(Comparator.comparing(m -> m.getMaterialId().toString()))
-                                .map(m -> new CompositionSnapshot.Material(m.getMaterialId(), m.getPlannedQuantity())).toList()))
+                                .map(m -> new CompositionSnapshot.Material(m.getMaterialId(), m.getPlannedQuantity())).toList(), i.getStatus()))
                 .toList();
         return new CompositionSnapshot(id, compositionVersion, composition);
     }
@@ -183,7 +183,7 @@ public class ServiceOrder {
             throw new OrderRuleException("BUDGET_CONTEXT_UNAVAILABLE");
         }
         if (!currentBudgetId.equals(budgetId) || quoted == null || budgetCompositionVersion == null
-                || quoted.version() != budgetCompositionVersion || !quoted.equals(compositionSnapshot())) {
+                || quoted.version() != budgetCompositionVersion || !quoted.sameComposition(compositionSnapshot())) {
             throw new OrderRuleException("BUDGET_COMPOSITION_CONFLICT");
         }
         if (amount == null || amount.signum() <= 0 || amount.scale() != 2 || amount.precision() > 19
@@ -202,7 +202,7 @@ public class ServiceOrder {
         return hasApprovedBudget() && approvedBudgetId.equals(currentBudgetId) && approvedComposition != null
                 && approvedComposition.version() == compositionVersion
                 && Integer.valueOf(compositionVersion).equals(budgetCompositionVersion)
-                && approvedComposition.equals(compositionSnapshot());
+                && approvedComposition.sameComposition(compositionSnapshot());
     }
 
     public boolean hasApprovedBudget() {

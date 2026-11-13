@@ -293,7 +293,12 @@ components:
           minimum: 1
         optional:
           type: boolean
+        status:
+          type: string
+          enum: [PENDING, WAITING_FOR_PARTS_AND_SUPPLIES, IN_PROGRESS, COMPLETED]
+          description: Status no momento do snapshot. Snapshots legados elegíveis usam PENDING.
       required:
+      - status
       - serviceOrderItemId
       - automotiveServiceId
       - serviceAmount
@@ -320,6 +325,10 @@ components:
         compositionVersion:
           type: integer
           minimum: 1
+        customerEmail:
+          type: string
+          format: email
+          description: Contato atual para envio do orçamento, quando cadastrado.
         items:
           type: array
           items:
