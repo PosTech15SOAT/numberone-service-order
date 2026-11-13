@@ -1,0 +1,10 @@
+{
+  "compensationId": "00000009-0000-4000-8000-000000000001",
+  "reason": "CANCELLED_BEFORE_USE",
+  "unusedConfirmed": false,
+  "evidence": {
+    "verifiedBy": "00000007-0000-4000-8000-000000000001",
+    "verifiedAt": "2026-11-04T14:00:00Z",
+    "reference": "inspection-local-001"
+  }
+}

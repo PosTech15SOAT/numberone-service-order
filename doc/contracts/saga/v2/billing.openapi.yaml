@@ -1,0 +1,518 @@
+openapi: 3.0.3
+info:
+  title: Billing — CT-07 e CT-09 para OS
+  version: 2.0.0-os-baseline.1
+  description: Proposta revisável fase 1B. Sem implementação ou aceite externo; decisões em decisions.md.
+servers:
+- url: https://internal.example.invalid
+  description: Placeholder; Marcelo confirma identidade e rede.
+security:
+- ServiceIdentity: []
+paths:
+  /internal/payments/service-orders/{serviceOrderId}/settlement:
+    get:
+      operationId: getServiceOrderSettlement
+      description: 'CT-07: autoridade sobre quitação considerando todos os pagamentos válidos e estornos. paymentId
+        em settled=true referencia pagamento válido; não é lista completa. PAID projetado na OS não autoriza entrega.
+        Consultar imediatamente antes e revalidar guardas locais. Timeout/404/503/504 bloqueiam entrega; settled=false
+        é resposta confirmada, não erro técnico. Corrida consulta/estorno depende acordo adicional, não há transação
+        distribuída.'
+      parameters:
+      - name: serviceOrderId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Quitação verificada no Billing; sem cache para autorizar entrega.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settlement'
+        '400':
+          description: INVALID_REQUEST; formato ou IDs divergentes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: UNAUTHENTICATED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: FORBIDDEN; serviço/posse/filial sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: DEPENDENCY_UNAVAILABLE; resultado desconhecido, repetir identidade original.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '504':
+          description: DEPENDENCY_TIMEOUT; não prova ausência de efeito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      x-contract-id: CT-07
+  /internal/budgets/{budgetId}/cancellation:
+    post:
+      operationId: cancelBudget
+      description: 'CT-09: Idempotency-Key equals operationId. Cancel the current DRAFT/SENT/REJECTED/APPROVED budget
+        only during authorized pre-execution compensation, with no financial effects. Validate budgetVersion and
+        close the same per-OS context as CT-11. Retry returns the recorded result.'
+      parameters:
+      - name: budgetId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Cancelamento comercial durável.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cancelled'
+        '400':
+          description: INVALID_REQUEST; formato ou IDs divergentes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: UNAUTHENTICATED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: FORBIDDEN; serviço/posse/filial sem autorização.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: Conflito impede C5/C6; corrigir contexto por decisão auditada, não mudar chave para mascarar
+            conflito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancellationConflict'
+        '503':
+          description: DEPENDENCY_UNAVAILABLE; resultado desconhecido, repetir identidade original.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '504':
+          description: DEPENDENCY_TIMEOUT; não prova ausência de efeito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      x-contract-id: CT-09
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancellationRequest'
+  /internal/budgets/service-orders/{serviceOrderId}/current:
+    get:
+      operationId: getCurrentBudget
+      x-contract-id: CT-10
+      description: Authoritative current budget; 404 is an observation, never proof of a closed context.
+      parameters:
+      - name: serviceOrderId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Current revision and immutable composition reference
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentBudget'
+        '404':
+          description: BUDGET_NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '400':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '504':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /internal/budgets/service-orders/{serviceOrderId}/cancellation:
+    post:
+      operationId: cancelBudgetContext
+      x-contract-id: CT-11
+      description: Close the OS billing context atomically with creation/decision/payment. Persist even when no
+        budget exists. Check OS cancellationInProgress and pre-execution eligibility outside SQL, then revalidate
+        the local context. A closed context refuses delayed budget creation. Idempotency-Key equals operationId.
+        Replay returns the recorded result.
+      parameters:
+      - name: serviceOrderId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: CANCELLED with budget identity or NO_BUDGET with durable context closure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClosedBudgetContext'
+        '409':
+          description: BUDGET_NOT_ELIGIBLE, FINANCIAL_EFFECT_PENDING or IDEMPOTENCY_CONFLICT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '400':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '504':
+          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContextCancellationRequest'
+components:
+  securitySchemes:
+    ServiceIdentity:
+      type: http
+      scheme: bearer
+      description: Opaque bearer token per caller/destination pair, private TLS, route scopes. No customer JWT on
+        service routes.
+  schemas:
+    Problem:
+      type: object
+      properties:
+        code: &id001
+          type: string
+          minLength: 1
+        message: *id001
+        correlationId: &id002
+          type: string
+          format: uuid
+        operationId: *id002
+        compensationId: *id002
+      required:
+      - code
+      - message
+      - correlationId
+      additionalProperties: true
+    Settlement:
+      type: object
+      properties:
+        serviceOrderId: &id003
+          type: string
+          format: uuid
+        settled:
+          type: boolean
+        paymentStatus:
+          type: string
+          enum:
+          - PAID
+          - UNSETTLED
+        paymentId: *id003
+        verifiedAt:
+          type: string
+          format: date-time
+          pattern: Z$
+      required:
+      - serviceOrderId
+      - settled
+      - paymentStatus
+      - verifiedAt
+      additionalProperties: true
+      oneOf:
+      - properties:
+          settled:
+            enum:
+            - true
+          paymentStatus:
+            type: string
+            enum:
+            - PAID
+        required:
+        - paymentId
+      - properties:
+          settled:
+            enum:
+            - false
+          paymentStatus:
+            type: string
+            enum:
+            - UNSETTLED
+    CancellationRequest:
+      type: object
+      properties:
+        operationId: *id003
+        budgetVersion: &id004
+          type: integer
+          minimum: 1
+        reason:
+          type: string
+          enum:
+          - SERVICE_ORDER_CANCELLED
+      required:
+      - operationId
+      - budgetVersion
+      - reason
+      additionalProperties: true
+    Cancelled:
+      type: object
+      properties:
+        budgetId: *id003
+        budgetVersion: *id004
+        operationId: *id003
+        result:
+          type: string
+          enum:
+          - CANCELLED
+      required:
+      - budgetId
+      - budgetVersion
+      - operationId
+      - result
+      additionalProperties: true
+    CancellationConflict:
+      type: object
+      properties:
+        code:
+          type: string
+          enum:
+          - IDEMPOTENCY_CONFLICT
+          - BUDGET_VERSION_CONFLICT
+          - BUDGET_NOT_ELIGIBLE
+          - FINANCIAL_EFFECT_PENDING
+        message:
+          type: string
+          minLength: 1
+        correlationId: &id005
+          type: string
+          format: uuid
+        operationId: *id005
+        compensationId: *id005
+      required:
+      - code
+      - message
+      - correlationId
+      additionalProperties: true
+    CurrentBudget:
+      type: object
+      properties:
+        serviceOrderId: &id006
+          type: string
+          format: uuid
+        budgetId: *id006
+        budgetVersion: &id007
+          type: integer
+          minimum: 1
+        compositionVersion: *id007
+        status:
+          type: string
+          enum:
+          - DRAFT
+          - SENT
+          - APPROVED
+          - REJECTED
+          - CANCELLED
+        amount:
+          type: string
+          pattern: ^(0|[1-9][0-9]*)\.[0-9]{2}$
+          maxLength: 20
+        currency:
+          type: string
+          enum:
+          - BRL
+      required:
+      - serviceOrderId
+      - budgetId
+      - budgetVersion
+      - compositionVersion
+      - status
+      - amount
+      - currency
+      additionalProperties: true
+      oneOf:
+      - properties:
+          status:
+            enum:
+            - APPROVED
+          amount:
+            type: string
+            pattern: ^(?:0\.(?:0[1-9]|[1-9][0-9])|[1-9][0-9]*\.[0-9]{2})$
+            maxLength: 20
+      - properties:
+          status:
+            enum:
+            - DRAFT
+            - SENT
+            - REJECTED
+            - CANCELLED
+    ContextCancellationRequest:
+      type: object
+      properties:
+        operationId: *id006
+        reason:
+          type: string
+          enum:
+          - SERVICE_ORDER_CANCELLED
+      required:
+      - operationId
+      - reason
+      additionalProperties: true
+    ClosedBudgetContext:
+      type: object
+      properties:
+        operationId: *id006
+        serviceOrderId: *id006
+        result:
+          type: string
+          enum:
+          - CANCELLED
+          - NO_BUDGET
+        budgetId: *id006
+        budgetVersion: *id007
+      required:
+      - operationId
+      - serviceOrderId
+      - result
+      additionalProperties: true
+      oneOf:
+      - properties:
+          result:
+            enum:
+            - CANCELLED
+        required:
+        - budgetId
+        - budgetVersion
+      - properties:
+          result:
+            enum:
+            - NO_BUDGET
+        not:
+          anyOf:
+          - required:
+            - budgetId
+          - required:
+            - budgetVersion
+x-implementation-status: OS_IMPLEMENTATION_BASELINE

@@ -1,0 +1,23 @@
+{
+  "messageId": "00000111-0000-4000-8000-000000000001",
+  "sagaId": "00000002-0000-4000-8000-000000000001",
+  "serviceOrderId": "00000003-0000-4000-8000-000000000001",
+  "branchId": "00000004-0000-4000-8000-000000000001",
+  "attemptId": "00000005-0000-4000-8000-000000000001",
+  "operationId": "00000063-0000-4000-8000-000000000001",
+  "type": "PaymentConfirmed",
+  "schemaVersion": 1,
+  "causationId": "00000109-0000-4000-8000-000000000001",
+  "occurredAt": "2026-10-31T15:00:00Z",
+  "producer": "billing-service",
+  "correlationId": "demo-os-phase1",
+  "payload": {
+    "budgetRevision": 1,
+    "budgetId": "00000010-0000-4000-8000-000000000001",
+    "paymentAttemptId": "00000012-0000-4000-8000-000000000001",
+    "currency": "BRL",
+    "totalAmount": "350.0",
+    "confirmedAt": "2026-10-31T15:00:00Z",
+    "paymentReference": "payment-fixture"
+  }
+}

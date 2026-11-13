@@ -43,7 +43,9 @@ O destino remoto retornou 404 no acesso disponível. Não foi pressuposta govern
   não é prova de cobertura de negócio (não há negócio implementado ainda).
 - Bootstrap mínimo local em main/develop; entregas 1A e 1B em branches separadas.
   Publicação pública foi bloqueada pela revisão automática de permissões; nenhuma
-  tentativa alternativa foi feita. Preparar resultado local antes de pedir autorização.
+  tentativa alternativa foi feita. Após preparar o resultado local, o usuário
+  autorizou a publicação: repositório público e PRs #1/#2 criados em 31/10/2026.
+  O bloqueio é histórico, não impedimento atual. Nenhum merge/deploy realizado.
 
 ## Referências técnicas
 
