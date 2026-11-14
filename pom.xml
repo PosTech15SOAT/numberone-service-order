@@ -72,6 +72,7 @@
       <configuration>
         <rulesets><ruleset>${project.basedir}/config/pmd.xml</ruleset></rulesets>
         <printFailingErrors>true</printFailingErrors>
+        <skipPmdError>false</skipPmdError>
       </configuration>
       <executions>
         <execution>
