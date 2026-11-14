@@ -1,23 +1,26 @@
-# NumberOne â€” ServiÃ§o de Ordens de ServiÃ§o
+# NumberOne — Serviço de Ordens de Serviço
+
+[Arquitetura e entregáveis da Fase 4](doc/arquitetura-fase-4.md) · [Collection Postman](doc/api/numberone-os.postman_collection.json) · [CI e evidência de cobertura](https://github.com/PosTech15SOAT/numberone-service-order/actions/runs/43513063185)
 
 OS independente em Java 25/Spring Boot 4.0.5, PostgreSQL exclusivo e Flyway.
-A fase 2 extrai cadastros locais, diagnÃ³stico, itens e materiais previstos.
-As fases 3 e 4 acrescentam inbox SQS Billing â†’ OS, Saga durÃ¡vel, consumo REST por
-item e entrega com quitaÃ§Ã£o oficial. SQS permanece desabilitado por padrÃ£o;
-os modos `dedicated` e `shared` exigem configuraÃ§Ã£o explÃ­cita.
-NÃ£o hÃ¡ Billing/Inventory reais, novas Lambdas ou deploy nesta entrega.
+A fase 2 extrai cadastros locais, diagnóstico, itens e materiais previstos.
+As fases 3 e 4 acrescentam inbox SQS Billing → OS, Saga durável, consumo REST por
+item e entrega com quitação oficial. SQS permanece desabilitado por padrão;
+os modos `dedicated` e `shared` exigem configuração explícita.
+Billing e Inventory possuem adaptadores HTTP. A combinação de releases para o EKS
+e a política de identidade entre serviços estão no guia da Fase 4.
 
-[ImplementaÃ§Ã£o e demonstraÃ§Ã£o da fase 4](doc/progress/fase-4.md), sobre a
+[Implementação e demonstração da fase 4](doc/progress/fase-4.md), sobre a
 [mensageria da fase 3](doc/progress/fase-3.md): pacote ativo
 `2.0.0-os-baseline.1`, `readyForOsImplementation=true`, `approvedContract=false`.
 
-Status: **implementaÃ§Ã£o para revisÃ£o de Matheus; fase nÃ£o encerrada**.
-[RelatÃ³rio da fase 2](doc/progress/fase-2.md),
-[mapa de extraÃ§Ã£o](doc/progress/mapa-extracao-fase-2.md),
-[demonstraÃ§Ã£o e entrega](doc/progress/demonstracao-fase-2.md).
+Status da revisão documentada: **código e CI consolidados em `develop`**.
+[Relatório da fase 2](doc/progress/fase-2.md),
+[mapa de extração](doc/progress/mapa-extracao-fase-2.md),
+[demonstração e entrega](doc/progress/demonstracao-fase-2.md).
 Origem autoritativa: `PosTech15SOAT/numberone-app-auto-service-api`, develop
 `42b393cb66c9d0a62cf14f80dcfc37745ce09e7e`, conferido em 01/11/2026.
-O checkout legado nÃ£o Ã© a base desta aplicaÃ§Ã£o.
+O checkout legado não é a base desta aplicação.
 
 Histórico: [fase 1](doc/progress/fase-1.md),
 [revisão 1B e evidências](doc/progress/revisao-fase-1b.md),
@@ -49,10 +52,10 @@ de operação é reaproveitado na recuperação de uma resposta perdida.
 
 ## Executar localmente no PowerShell
 
-Docker Desktop com engine Linux; nÃ£o requer JDK no host. O Compose usa banco
-`service_order_db`, volume prÃ³prio, credencial demonstrativa e identidade ADMIN
-local. SÃ³ publica HTTP no loopback; nÃ£o utilizar esse perfil fora do desenvolvimento.
-NÃ£o existe login nem emissor JWT. O PostgreSQL nÃ£o publica porta no host.
+Docker Desktop com engine Linux; não requer JDK no host. O Compose usa banco
+`service_order_db`, volume próprio, credencial demonstrativa e identidade ADMIN
+local. Só publica HTTP no loopback; não utilizar esse perfil fora do desenvolvimento.
+Não existe login nem emissor JWT. O PostgreSQL não publica porta no host.
 
 ```powershell
 $env:MATERIAL_REFERENCE_PROVIDER = 'fixture'
@@ -63,11 +66,11 @@ docker compose down
 ```
 
 O script aguarda readiness e falha se qualquer resultado diferir do esperado.
-Usa somente dados sintÃ©ticos e mostra estados/contagens, sem corpos de cadastro.
-O material fixo da demonstraÃ§Ã£o **nÃ£o consulta Inventory real**. Sem ativar a
-fixture, consulta de referÃªncia retorna 503 `MATERIAL_REFERENCE_UNAVAILABLE`.
-O volume persiste entre execuÃ§Ãµes; o script reaproveita seus cadastros sintÃ©ticos
-e cria uma nova OS por execuÃ§Ã£o. Readiness inclui PostgreSQL; liveness sÃ³ o processo.
+Usa somente dados sintéticos e mostra estados/contagens, sem corpos de cadastro.
+O material fixo da demonstração **não consulta Inventory real**. Sem ativar a
+fixture, consulta de referência retorna 503 `MATERIAL_REFERENCE_UNAVAILABLE`.
+O volume persiste entre execuções; o script reaproveita seus cadastros sintéticos
+e cria uma nova OS por execução. Readiness inclui PostgreSQL; liveness só o processo.
 
 ## Compilar e conferir
 
@@ -83,48 +86,50 @@ docker run --rm --network none --mount "type=bind,source=$((Get-Location).Path),
 docker build -t numberone-service-order:local .
 ```
 
-Primeira execuÃ§Ã£o precisa de rede para dependÃªncias/imagens. O socket permite ao
-Testcontainers criar e remover seu PostgreSQL descartÃ¡vel; nenhum teste usa o
+Primeira execução precisa de rede para dependências/imagens. O socket permite ao
+Testcontainers criar e remover seu PostgreSQL descartável; nenhum teste usa o
 banco do Compose ou legado. Em Linux nativo, rode Maven no host ou ajuste o acesso
-ao daemon conforme a [documentaÃ§Ã£o do Testcontainers](https://java.testcontainers.org/supported_docker_environment/continuous_integration/dind_patterns/).
+ao daemon conforme a [documentação do Testcontainers](https://java.testcontainers.org/supported_docker_environment/continuous_integration/dind_patterns/).
 
-| EvidÃªncia | ExecuÃ§Ã£o / relatÃ³rio | O que demonstra |
+| Evidência | Execução / relatório | O que demonstra |
 |---|---|---|
-| Regra | Surefire `*Test`, `target/surefire-reports` | DomÃ­nio, validaÃ§Ãµes, identidade, posse e correlaÃ§Ã£o |
-| PersistÃªncia | `ServiceOrderPersistenceIT`, Failsafe | Flyway, FKs, constraints, locks e versÃµes em PostgreSQL 17 real |
-| Transporte | `*TransportIT`, Failsafe | HTTP/Tomcat reais em porta aleatÃ³ria, seguranÃ§a e CRUD sobre PostgreSQL |
-| Contrato | `scripts/validate_contracts.py`, `target/contract-validation.json` | Schemas/vetores; nÃ£o prova trÃ¡fego entre serviÃ§os |
-| Cobertura | `target/site/jacoco/index.html` | UnitÃ¡rios + integraÃ§Ã£o, gate 80% de linhas; sÃ³ bootstrap excluÃ­do |
+| Regra | Surefire `*Test`, `target/surefire-reports` | Domínio, validações, identidade, posse e correlação |
+| Persistência | `ServiceOrderPersistenceIT`, Failsafe | Flyway, FKs, constraints, locks e versões em PostgreSQL 17 real |
+| Transporte | `*TransportIT`, Failsafe | HTTP/Tomcat reais em porta aleatória, segurança e CRUD sobre PostgreSQL |
+| Contrato | `scripts/validate_contracts.py`, `target/contract-validation.json` | Schemas/vetores; não prova tráfego entre serviços |
+| Cobertura | `target/site/jacoco/index.html` | Unitários + integração, gate 80% de linhas; só bootstrap excluído |
 
-`SagaMainFlowIT` demonstra a execuÃ§Ã£o completa por HTTP com PostgreSQL e
+`SagaMainFlowIT` demonstra a execução completa por HTTP com PostgreSQL e
 participantes Billing/Inventory simulados, usando o pacote real de contratos.
-Os testes histÃ³ricos de domÃ­nio/persistÃªncia mantÃªm seeds identificados.
-`scripts/validate_phase4_trace.py` valida os JSONs capturados da demonstraÃ§Ã£o.
-NÃ£o hÃ¡ endpoints administrativos de confirmaÃ§Ã£o nem integraÃ§Ã£o externa demonstrada.
+Os testes históricos de domínio/persistência mantêm seeds identificados.
+`scripts/validate_phase4_trace.py` valida os JSONs capturados da demonstração.
+Esse teste usa participantes simulados. A homologação local com o Mercado Pago
+foi executada separadamente com as revisões anteriores que ainda usavam Bearer
+entre serviços.
 
-## CompensaÃ§Ã£o e recuperaÃ§Ã£o â€” fase 5
+## Compensação e recuperação — fase 5
 
-Cancelamento integral conferido antes do primeiro inÃ­cio usa C1â€“C6 e
-CT-08/08B/09/11. O worker retoma operaÃ§Ãµes com chaves persistidas apÃ³s timeout
-ou reinÃ­cio. Ver [entrega e evidÃªncias](doc/progress/fase-5.md),
-[roteiro de retomada e revisÃ£o](doc/progress/runbook-fase-5.md) e
+Cancelamento integral conferido antes do primeiro início usa C1–C6 e
+CT-08/08B/09/11. O worker retoma operações com chaves persistidas após timeout
+ou reinício. Ver [entrega e evidências](doc/progress/fase-5.md),
+[roteiro de retomada e revisão](doc/progress/runbook-fase-5.md) e
 [contrato das rotas](doc/contracts/os-phase5.openapi.yaml).
 
-## SeguranÃ§a e limites
+## Segurança e limites
 
-`/api/*` exige `X-Correlation-Id` vÃ¡lido. `/api/admin/**` exige ADMIN; acompanhamento
+`/api/*` exige `X-Correlation-Id` válido. `/api/admin/**` exige ADMIN; acompanhamento
 exige ADMIN ou `SERVICE_ORDER_TRACK_OWN` com posse do cliente e filial configurada.
-As rotas e mudanÃ§as de DTO estÃ£o no mapa de extraÃ§Ã£o. Valores estimados sÃ£o
-identificados como `ESTIMATIVA`; aprovaÃ§Ã£o/pagamento sÃ³ sÃ£o projeÃ§Ãµes confirmadas.
+As rotas e mudanças de DTO estão no mapa de extração. Valores estimados são
+identificados como `ESTIMATIVA`; aprovação/pagamento só são projeções confirmadas.
 
 Fora do perfil local, fornecer `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` e
-`OS_BRANCH_ID` por configuraÃ§Ã£o segura. Identidade Gateway vem desligada para
-confianÃ§a de headers: `GATEWAY_HEADERS_TRUSTED=false`. Marcelo precisa validar
+`OS_BRANCH_ID` por configuração segura. Identidade Gateway vem desligada para
+confiança de headers: `GATEWAY_HEADERS_TRUSTED=false`. Marcelo precisa validar
 sobrescrita dos headers no Gateway e bloqueio de acesso direto antes de habilitar.
-NÃ£o se pode confiar em headers recebidos diretamente de clientes.
+Não se pode confiar em headers recebidos diretamente de clientes.
 
 Logs JSON usam `correlation_id`, sem payloads, identidade ou erros SQL. Datadog
-1.64.2 fixado na imagem; envio ao Datadog nÃ£o demonstrado. CI executa **Required
-validation**; manifestos sÃ£o apenas referÃªncias para revisÃ£o. NÃ£o hÃ¡ workflow de
-deploy. Ver [CONTRIBUTING](CONTRIBUTING.md), [manifestos](k8s/README.md) e
-[governanÃ§a pendente](doc/integration/governance-request.md).
+1.64.2 fixado na imagem. O CI executa **Required validation** e existe workflow
+manual de deploy. A execução no EKS e o rastreamento no Datadog ainda precisam
+de evidência da Fase 4. Ver [CONTRIBUTING](CONTRIBUTING.md), [manifestos](k8s/README.md) e
+[governança pendente](doc/integration/governance-request.md).
