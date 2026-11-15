@@ -35,13 +35,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 @EnabledIfEnvironmentVariable(named = "I2_INVENTORY_URL", matches = ".+")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "app.branch.id=40000000-0000-4000-8000-000000000001",
-        "app.security.identity.provider=gateway", "app.security.identity.gateway-trusted=true",
         "app.material-reference.provider=http", "app.saga.recovery-enabled=false",
         "app.billing.sqs.enabled=false", "app.history.enabled=false"
 })
 class InventoryI2IT {
     private static final String INVENTORY = System.getenv("I2_INVENTORY_URL");
-    private static final String TOKEN = System.getenv("OS_TO_INVENTORY_TOKEN");
     private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
     private static final String CONSUMPTIONS = "/internal/inventory/consumptions";
     private static final String OPERATIONS = "/internal/inventory/operations/";
@@ -55,8 +53,7 @@ class InventoryI2IT {
     @Value("${local.server.port}") int port;
     private final String correlation = UUID.randomUUID().toString();
     private final Map<String, String> admin = Map.of("X-Authenticated-Subject", UUID.randomUUID().toString(),
-            "X-Authenticated-Status", "ACTIVE", "X-Authenticated-Roles", "ADMIN",
-            "X-Authenticated-Permissions", "", "X-Correlation-Id", correlation);
+            "X-Correlation-Id", correlation);
 
     @DynamicPropertySource
     static void inventory(DynamicPropertyRegistry registry) throws IOException {
@@ -83,7 +80,6 @@ class InventoryI2IT {
         });
         billing.start();
         registry.add("app.saga.billing-url", () -> "http://127.0.0.1:" + billing.getAddress().getPort());
-        registry.add("app.saga.billing-token", () -> "i2-billing");
     }
 
     @AfterAll static void stopRelay() {
@@ -108,7 +104,7 @@ class InventoryI2IT {
             }
             var request = HttpRequest.newBuilder(URI.create(INVENTORY + exchange.getRequestURI()))
                     .timeout(Duration.ofSeconds(4));
-            for (String name : new String[]{"Authorization", "X-Correlation-Id", "Content-Type", "Idempotency-Key"}) {
+            for (String name : new String[]{"X-Correlation-Id", "Content-Type", "Idempotency-Key"}) {
                 var value = exchange.getRequestHeaders().getFirst(name);
                 if (value != null) { request.header(name, value); }
             }
@@ -179,7 +175,7 @@ class InventoryI2IT {
         assertThat(field(operation(refused), "result")).isEqualTo("REJECTED");
 
         billingCheck = exchange -> {
-            assertThat(exchange.getRequestHeaders().getFirst("Authorization")).isEqualTo("Bearer i2-billing");
+            assertThat(exchange.getRequestHeaders().getFirst("Authorization")).isNull();
             assertThat(exchange.getRequestHeaders().getFirst("X-Correlation-Id")).isEqualTo(correlation);
             assertThat(jdbc.queryForObject("SELECT count(*) FROM saga_operation WHERE service_order_id=? AND intent='RESOLVE_STOCK' AND state<>'SUCCEEDED'",
                     Integer.class, UUID.fromString(order))).isZero();
@@ -244,11 +240,11 @@ class InventoryI2IT {
                     String.class, UUID.fromString(id));
             String key = compensationId(id);
             var replay = inventory(200, "POST", CONSUMPTIONS + "/" + id + "/reversal", json.readTree(storedRequest),
-                    Map.of("Authorization", "Bearer " + TOKEN, "X-Correlation-Id", correlation, "Idempotency-Key", key));
+                    Map.of("X-Correlation-Id", correlation, "Idempotency-Key", key));
             assertThat(replay).isEqualTo(operation(id));
         }
         var late = jdbc.queryForObject("SELECT request::text FROM saga_operation WHERE operation_id=?", String.class, UUID.fromString(closed));
-        assertThat(field(inventory(409, "POST", CONSUMPTIONS, json.readTree(late), Map.of("Authorization", "Bearer " + TOKEN,
+        assertThat(field(inventory(409, "POST", CONSUMPTIONS, json.readTree(late), Map.of(
                 "X-Correlation-Id", correlation, "Idempotency-Key", closed)), "code")).isEqualTo("ATTEMPT_CLOSED");
         assertThat(balance(material)).isEqualTo(5); assertThat(balance(missing)).isZero();
         var evidence = Map.of("order", order, "material", material, "balances", java.util.List.of(5,4,5,5),
@@ -304,7 +300,7 @@ class InventoryI2IT {
 
     private JsonNode operation(String key) throws Exception {
         return inventory(200, "GET", OPERATIONS + key, null,
-                Map.of("Authorization", "Bearer " + TOKEN, "X-Correlation-Id", correlation));
+                Map.of("X-Correlation-Id", correlation));
     }
 
     private String addItem(String order, JsonNode service) throws Exception {

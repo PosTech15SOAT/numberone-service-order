@@ -5,8 +5,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import tools.jackson.databind.ObjectMapper;
 
@@ -19,11 +22,19 @@ import java.time.Duration;
 public class MaintenanceHistoryConfiguration {
     @Bean(destroyMethod = "close")
     DynamoDbClient historyDynamoClient(@Value("${app.history.region}") String region,
-                                      @Value("${app.history.endpoint}") String endpoint) {
+                                      @Value("${app.history.endpoint}") String endpoint, Environment environment) {
         var builder = DynamoDbClient.builder().region(Region.of(region))
                 .overrideConfiguration(config -> config.apiCallTimeout(Duration.ofSeconds(4))
                         .apiCallAttemptTimeout(Duration.ofSeconds(2)));
-        if (!endpoint.isBlank()) {
+        if (environment.matchesProfiles("local", "kind")) {
+            URI uri = URI.create(endpoint);
+            if (!"http".equals(uri.getScheme()) || uri.getUserInfo() != null || uri.getQuery() != null
+                    || uri.getFragment() != null || uri.getHost() == null || !java.util.Set.of("localhost", "127.0.0.1", "localstack", "localstack-dynamodb").contains(uri.getHost())) {
+                throw new IllegalStateException("LOCAL_HISTORY_REQUIRES_LOCALSTACK_ENDPOINT");
+            }
+            builder.credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create("test", "test")));
+            builder.endpointOverride(uri);
+        } else if (!endpoint.isBlank()) {
             builder.endpointOverride(URI.create(endpoint));
         }
         return builder.build();

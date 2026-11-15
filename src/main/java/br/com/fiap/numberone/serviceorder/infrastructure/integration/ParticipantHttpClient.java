@@ -15,13 +15,11 @@ import java.util.UUID;
 public class ParticipantHttpClient {
     private final ObjectMapper json;
     private final String base;
-    private final String token;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
 
-    public ParticipantHttpClient(ObjectMapper json, String base, String token) {
+    public ParticipantHttpClient(ObjectMapper json, String base) {
         this.json = json;
         this.base = base;
-        this.token = token;
     }
 
     HttpResponse<String> get(String path, UUID correlation) {
@@ -33,10 +31,10 @@ public class ParticipantHttpClient {
     }
 
     private HttpResponse<String> exchange(String path, Object body, UUID key, UUID correlation) {
-        if (base.isBlank() || token.isBlank()) { throw new SagaDependencyException(); }
+        if (base.isBlank()) { throw new SagaDependencyException(); }
         try {
             var request = HttpRequest.newBuilder(URI.create(base + path)).timeout(Duration.ofSeconds(5))
-                    .header("Authorization", "Bearer " + token).header("X-Correlation-Id", correlation.toString())
+                    .header("X-Correlation-Id", correlation.toString())
                     .header("Accept", "application/json");
             if (body == null) { request.GET(); }
             else { request.header("Content-Type", "application/json").header("Idempotency-Key", key.toString())

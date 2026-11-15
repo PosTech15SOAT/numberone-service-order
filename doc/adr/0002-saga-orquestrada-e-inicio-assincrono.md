@@ -1,5 +1,7 @@
 # ADR 0002 — Saga orquestrada e início assíncrono
 
+> As decisões de autenticação/autorização HTTP deste registro foram substituídas pela [decisão do MVP](../adr/0004-mvp-sem-autenticacao-http.md).
+
 Status: proposta, dependente de Matheus/Julio/Anderson/Marcelo. Data: 31/10/2026.
 
 ## Contexto e decisão proposta

@@ -16,14 +16,12 @@ public class ServiceOrderItemController {
     private final ServiceOrderService service;
     private final ServiceOrderApiMapper mapper;
     private final br.com.fiap.numberone.serviceorder.application.services.StartServiceOrderItem saga;
-    private final br.com.fiap.numberone.shared.security.application.gateways.AuthenticatedUserProvider users;
     private final tools.jackson.databind.ObjectMapper json;
     public ServiceOrderItemController(ServiceOrderService service, ServiceOrderApiMapper mapper,
             br.com.fiap.numberone.serviceorder.application.services.StartServiceOrderItem saga,
-            br.com.fiap.numberone.shared.security.application.gateways.AuthenticatedUserProvider users,
             tools.jackson.databind.ObjectMapper json) {
         this.service = service; this.mapper = mapper;
-        this.saga = saga; this.users = users; this.json = json;
+        this.saga = saga; this.json = json;
     }
     @PostMapping public ResponseEntity<OrderResponses.Item> create(@Valid @RequestBody OrderRequests.Item r) {
         var item = service.addItem(r.orderId(), r.serviceId(), r.estimate(), r.quantity() == null ? 1 : r.quantity(), Boolean.TRUE.equals(r.optional()));
@@ -31,11 +29,11 @@ public class ServiceOrderItemController {
     }
     @DeleteMapping("/{id}") public ResponseEntity<Void> remove(@PathVariable UUID id) { service.removeItem(id); return ResponseEntity.noContent().build(); }
     @PatchMapping("/{id}/iniciar") public ResponseEntity<tools.jackson.databind.JsonNode> start(@PathVariable UUID id,
-            @RequestHeader(value="Idempotency-Key", required=false) UUID key) {
-        var user = users.currentUser().orElseThrow(() -> new org.springframework.security.access.AccessDeniedException("UNAUTHENTICATED"));
-        // CT-05 requires the authenticated employee UUID, never an ID supplied by the body.
+            @RequestHeader(value="Idempotency-Key", required=false) UUID key,
+            @RequestHeader("X-Authenticated-Subject") String subject) {
+        UUID author = br.com.fiap.numberone.shared.api.DeclaredAuthor.parse(subject);
         var correlation = br.com.fiap.numberone.shared.infrastructure.correlation.SagaCorrelation.current();
-        var result = saga.start(id, key, UUID.fromString(user.subject()), correlation);
+        var result = saga.start(id, key, author, correlation);
         if (result.state().equals("REJECTED")) {
             return ResponseEntity.status(409).body(json.valueToTree(java.util.Map.of("status", 409,
                     "message", "INSUFFICIENT_STOCK", "code", "INSUFFICIENT_STOCK", "errors", java.util.List.of(),

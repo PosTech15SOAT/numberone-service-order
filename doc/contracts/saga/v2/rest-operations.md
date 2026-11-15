@@ -25,4 +25,6 @@ o bloqueio da OS durante a compensação. CT-09 valida a revisão e fecha o mesm
 
 CT-07 considera o conjunto financeiro. Eventos agendam verificação e a entrega
 consulta novamente. Auth recebe apenas os campos que o login já usa pelo endpoint
-interno protegido. Operações são autorizadas por token opaco por par de serviços.
+interno previsto no contrato. No MVP, operações HTTP não autenticam nem autorizam
+chamadores; correlação, autoria declarada e idempotência continuam obrigatórias
+nos contratos aplicáveis. O lookup do Auth permanece não implementado na OS.

@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: numberone-os
+spec:
+  strategy:
+    rollingUpdate: {maxSurge: 0, maxUnavailable: 1}
+  template:
+    spec:
+      containers:
+        - name: os
+          imagePullPolicy: Never
+          env:
+            - name: DB_URL
+              valueFrom:
+                $patch: replace
+                configMapKeyRef: {name: numberone-os-runtime, key: DB_URL}
+            - name: DB_USERNAME
+              valueFrom:
+                $patch: replace
+                configMapKeyRef: {name: numberone-os-runtime, key: DB_USERNAME}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: postgres-credentials, key: OS_PASSWORD}
+            - name: DD_ENV
+              $patch: delete
+            - name: DD_AGENT_HOST
+              $patch: delete
+            - name: STATSD_ENABLED
+              $patch: delete
+          startupProbe:
+            failureThreshold: 60

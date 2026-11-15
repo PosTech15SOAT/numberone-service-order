@@ -14,7 +14,6 @@ import java.util.UUID;
 @TestPropertySource(properties = {
         "app.saga.recovery-enabled=false",
         "app.branch.id=40000000-0000-4000-8000-000000000001",
-        "app.security.identity.provider=gateway", "app.security.identity.gateway-trusted=true",
         "app.material-reference.provider=fixture", "management.statsd.metrics.export.enabled=false"
 })
 public abstract class PostgresSupport {

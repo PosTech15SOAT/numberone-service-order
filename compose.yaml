@@ -29,7 +29,6 @@ services:
       DB_USERNAME: os_local
       DB_PASSWORD: local-development-only
       OS_BRANCH_ID: ${OS_BRANCH_ID:-40000000-0000-4000-8000-000000000001}
-      IDENTITY_PROVIDER: local
       APP_MATERIAL_REFERENCE_PROVIDER: ${MATERIAL_REFERENCE_PROVIDER:-unavailable}
       DD_SERVICE: ${DD_SERVICE:-numberone-service-order}
       DD_ENV: ${DD_ENV:-local}

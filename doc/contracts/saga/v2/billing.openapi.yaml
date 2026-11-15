@@ -6,8 +6,7 @@ info:
 servers:
 - url: https://internal.example.invalid
   description: Placeholder; Marcelo confirma identidade e rede.
-security:
-- ServiceIdentity: []
+security: []
 paths:
   /internal/payments/service-orders/{serviceOrderId}/settlement:
     get:
@@ -39,18 +38,6 @@ paths:
                 $ref: '#/components/schemas/Settlement'
         '400':
           description: INVALID_REQUEST; formato ou IDs divergentes.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-        '401':
-          description: UNAUTHENTICATED
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-        '403':
-          description: FORBIDDEN; serviço/posse/filial sem autorização.
           content:
             application/json:
               schema:
@@ -108,18 +95,6 @@ paths:
                 $ref: '#/components/schemas/Cancelled'
         '400':
           description: INVALID_REQUEST; formato ou IDs divergentes.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-        '401':
-          description: UNAUTHENTICATED
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-        '403':
-          description: FORBIDDEN; serviço/posse/filial sem autorização.
           content:
             application/json:
               schema:
@@ -188,31 +163,19 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
         '400':
-          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-        '401':
-          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-        '403':
-          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          description: Invalid request or inconclusive dependency; preserve operation identity.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
         '503':
-          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          description: Invalid request or inconclusive dependency; preserve operation identity.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
         '504':
-          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          description: Invalid request or inconclusive dependency; preserve operation identity.
           content:
             application/json:
               schema:
@@ -258,31 +221,19 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
         '400':
-          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-        '401':
-          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Problem'
-        '403':
-          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          description: Invalid request or inconclusive dependency; preserve operation identity.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
         '503':
-          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          description: Invalid request or inconclusive dependency; preserve operation identity.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Problem'
         '504':
-          description: Invalid request, access denied or inconclusive dependency; preserve operation identity.
+          description: Invalid request or inconclusive dependency; preserve operation identity.
           content:
             application/json:
               schema:
@@ -294,12 +245,6 @@ paths:
             schema:
               $ref: '#/components/schemas/ContextCancellationRequest'
 components:
-  securitySchemes:
-    ServiceIdentity:
-      type: http
-      scheme: bearer
-      description: Opaque bearer token per caller/destination pair, private TLS, route scopes. No customer JWT on
-        service routes.
   schemas:
     Problem:
       type: object

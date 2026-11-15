@@ -3,8 +3,8 @@ info:
   title: NumberOne OS — compensação e retomada da fase 5
   version: 5.0.0-local
   description: >-
-    Extensão das rotas administrativas. Exige ADMIN, identidade autenticada via
-    configuração de segurança da OS e escopo de filial. Substitui a antiga
+    Extensão das rotas administrativas, sem autenticação/autorização HTTP.
+    Preserva correlação, autoria declarada e escopo de filial. Substitui a antiga
     operação de cancelamento local sem conferência. Contratos dos participantes
     permanecem no pacote saga/v2.
 paths:
@@ -13,6 +13,8 @@ paths:
       - $ref: '#/components/parameters/Id'
       - $ref: '#/components/parameters/Correlation'
     patch:
+      parameters:
+        - $ref: '#/components/parameters/Author'
       operationId: requestFullCancellation
       requestBody:
         $ref: '#/components/requestBodies/Verification'
@@ -22,13 +24,9 @@ paths:
         '200':
           $ref: '#/components/responses/Status'
         '409':
-          description: Revisão operacional registrada (Status) ou conflito de regra/identidade (erro padrão da OS).
+          description: Revisão operacional registrada (Status) ou conflito de regra/autoria (erro padrão da OS).
         '400':
-          description: Conferência ausente ou inválida.
-        '401':
-          description: Identidade ausente.
-        '403':
-          description: ADMIN necessário.
+          description: Conferência ou autoria ausente/inválida.
         '404':
           description: OS inexistente ou fora da filial.
   /api/admin/itens-ordem-servico/{id}/cancelar:
@@ -36,6 +34,8 @@ paths:
       - $ref: '#/components/parameters/Id'
       - $ref: '#/components/parameters/Correlation'
     patch:
+      parameters:
+        - $ref: '#/components/parameters/Author'
       operationId: requestPartialCancellationReview
       description: Registra PARTIAL e o item na evidência, independentemente do scope enviado. Nunca cancela parcialmente de forma automática.
       requestBody:
@@ -44,11 +44,7 @@ paths:
         '409':
           description: Revisão operacional registrada ou conflito com pedido de cancelamento preexistente.
         '400':
-          description: Conferência ausente ou inválida.
-        '401':
-          description: Identidade ausente.
-        '403':
-          description: ADMIN necessário.
+          description: Conferência ou autoria ausente/inválida.
         '404':
           description: Item inexistente ou fora da filial.
   /api/admin/ordens-servico/{id}/compensacao:
@@ -60,10 +56,6 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/Status'
-        '401':
-          description: Identidade ausente.
-        '403':
-          description: ADMIN necessário.
         '404':
           description: OS inexistente ou fora da filial.
   /api/admin/ordens-servico/{id}/compensacao/retomar:
@@ -71,6 +63,8 @@ paths:
       - $ref: '#/components/parameters/Id'
       - $ref: '#/components/parameters/Correlation'
     post:
+      parameters:
+        - $ref: '#/components/parameters/Author'
       operationId: resumeEligibleCompensation
       description: >-
         Registra decisão auditada após resolução externa de conflito. Revalida a
@@ -94,15 +88,19 @@ paths:
         '409':
           description: OPERATIONAL_DECISION_REQUIRED; não elegível para retomada automática.
         '400':
-          description: Justificativa inválida.
-        '401':
-          description: Identidade ausente.
-        '403':
-          description: ADMIN necessário.
+          description: Justificativa ou autoria ausente/inválida.
         '404':
           description: OS inexistente ou fora da filial.
 components:
   parameters:
+    Author:
+      name: X-Authenticated-Subject
+      in: header
+      required: true
+      description: UUID de autoria declarada; não autentica identidade.
+      schema:
+        type: string
+        format: uuid
     Id:
       name: id
       in: path

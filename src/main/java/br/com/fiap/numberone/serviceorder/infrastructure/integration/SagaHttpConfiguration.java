@@ -9,15 +9,13 @@ import tools.jackson.databind.ObjectMapper;
 class SagaHttpConfiguration {
     @Bean
     ParticipantHttpClient inventorySagaHttp(ObjectMapper json,
-            @Value("${app.saga.inventory-url:}") String url,
-            @Value("${app.saga.inventory-token:}") String token) {
-        return new ParticipantHttpClient(json, url, token);
+            @Value("${app.saga.inventory-url:}") String url) {
+        return new ParticipantHttpClient(json, url);
     }
 
     @Bean
     ParticipantHttpClient billingSagaHttp(ObjectMapper json,
-            @Value("${app.saga.billing-url:}") String url,
-            @Value("${app.saga.billing-token:}") String token) {
-        return new ParticipantHttpClient(json, url, token);
+            @Value("${app.saga.billing-url:}") String url) {
+        return new ParticipantHttpClient(json, url);
     }
 }

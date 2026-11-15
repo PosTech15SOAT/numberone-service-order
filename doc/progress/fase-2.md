@@ -1,5 +1,7 @@
 # Fase 2 — registro de execução
 
+> As decisões de autenticação/autorização HTTP deste registro foram substituídas pela [decisão do MVP](../adr/0004-mvp-sem-autenticacao-http.md).
+
 Data: 01/11/2026. **Implementada e validada localmente; aguardando revisão de
 Matheus. Fase não encerrada**, pois o aceite de revisão obrigatório está pendente.
 Autorização: usuário solicitou iniciar a fase 2 após apresentação do escopo.

@@ -50,19 +50,24 @@ class HealthTransportIT extends br.com.fiap.numberone.support.PostgresSupport {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"/api/admin/ordens-servico", "/login", "/actuator/env"})
-    void forgedIdentityDoesNotUnlockUnimplementedEndpoints(String path) throws Exception {
-        var response = client.send(request(path).header("X-Correlation-Id", "demo-denied")
-                .header("X-Authenticated-Subject", "fixture-subject")
-                .header("X-Authenticated-Roles", "ADMIN").GET().build(), HttpResponse.BodyHandlers.ofString());
-        assertThat(response.statusCode()).isEqualTo(401);
-        assertThat(response.body()).contains("Authentication required").doesNotContain("fixture-subject");
+    @ValueSource(strings = {"/login", "/actuator/env"})
+    void unimplementedEndpointsRemainNotFound(String path) throws Exception {
+        var response = client.send(request(path).GET().build(), HttpResponse.BodyHandlers.ofString());
+        assertThat(response.statusCode()).isEqualTo(404);
     }
 
     @Test
-    void stateChangingRequestsRemainDenied() throws Exception {
+    void administrativeReadsNeedOnlyCorrelation() throws Exception {
+        var response = client.send(request("/api/admin/ordens-servico").header("X-Correlation-Id", "demo-read")
+                .GET().build(), HttpResponse.BodyHandlers.ofString());
+        assertThat(response.statusCode()).isEqualTo(200);
+    }
+
+    @Test
+    void stateChangingRequestsStillValidateTheirBody() throws Exception {
         var response = client.send(request("/api/admin/ordens-servico").header("X-Correlation-Id", "demo-post")
+                .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString("{}")).build(), HttpResponse.BodyHandlers.ofString());
-        assertThat(response.statusCode()).isEqualTo(401);
+        assertThat(response.statusCode()).isEqualTo(400);
     }
 }

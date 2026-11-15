@@ -8,7 +8,8 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.bind.MissingRequestHeaderException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -23,7 +24,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(new ErrorResponse(status, code, List.of()));
     }
     @ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class,
-            MethodArgumentTypeMismatchException.class, IllegalArgumentException.class})
+            MethodArgumentTypeMismatchException.class, MissingRequestHeaderException.class, IllegalArgumentException.class})
     ResponseEntity<ErrorResponse> invalid(Exception ex) { return error(400, "INVALID_REQUEST"); }
     @ExceptionHandler({OrderNotFoundException.class, NoResourceFoundException.class})
     ResponseEntity<ErrorResponse> missing(Exception ex) { return error(404, "RESOURCE_NOT_FOUND"); }
@@ -34,8 +35,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({DataIntegrityViolationException.class, OptimisticLockingFailureException.class,
             PessimisticLockingFailureException.class})
     ResponseEntity<ErrorResponse> conflict(Exception ex) { return error(409, "PERSISTENCE_CONFLICT"); }
-    @ExceptionHandler(AccessDeniedException.class)
-    ResponseEntity<ErrorResponse> forbidden(Exception ex) { return error(403, "ACCESS_DENIED"); }
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    ResponseEntity<ErrorResponse> methodNotAllowed(Exception ex) { return error(405, "METHOD_NOT_ALLOWED"); }
     @ExceptionHandler(MaterialReferenceUnavailableException.class)
     ResponseEntity<ErrorResponse> unavailable(Exception ex) { return error(503, "MATERIAL_REFERENCE_UNAVAILABLE"); }
     @ExceptionHandler(br.com.fiap.numberone.serviceorder.application.gateways.SagaDependencyException.class)

@@ -43,8 +43,6 @@ class SagaCompensationIT extends HttpPostgresSupport {
     @DynamicPropertySource static void participants(DynamicPropertyRegistry p) {
         p.add("app.saga.billing-url",() -> "http://127.0.0.1:"+SERVER.getAddress().getPort());
         p.add("app.saga.inventory-url",() -> "http://127.0.0.1:"+SERVER.getAddress().getPort());
-        p.add("app.saga.billing-token",() -> "fixture-billing");
-        p.add("app.saga.inventory-token",() -> "fixture-inventory");
     }
     @Autowired SagaCompensation compensation;
     @Autowired SagaRecoveryWorker worker;
@@ -94,7 +92,7 @@ class SagaCompensationIT extends HttpPostgresSupport {
     private Response respond(HttpExchange e) throws Exception {
         String path=e.getRequestURI().getPath(); UUID.fromString(e.getRequestHeaders().getFirst("X-Correlation-Id"));
         boolean inventory=path.startsWith("/internal/inventory/");
-        assertThat(e.getRequestHeaders().getFirst("Authorization")).isEqualTo("Bearer fixture-"+(inventory ? "inventory" : "billing"));
+        assertThat(e.getRequestHeaders().getFirst("Authorization")).isNull();
         if (path.contains("/operations/")) {
             queries.incrementAndGet(); UUID id=UUID.fromString(path.substring(path.lastIndexOf('/')+1)); var result=stored(id);
             if(pendingQuery) { return new Response(202,json.writeValueAsString(Map.of("operationId",id,"result","PENDING"))); }
@@ -361,7 +359,7 @@ class SagaCompensationIT extends HttpPostgresSupport {
         trace("os-phase5.openapi.yaml","Status",status);
         assertThat(status.get("cancellation").get("author").asString()).isEqualTo(admin().get("X-Authenticated-Subject"));
         assertThat(status.get("operations").findValues("result")).isNotEmpty();
-        expect(403,call("GET","/api/admin/ordens-servico/"+f.order()+"/compensacao",null,customer(f.customer())));
+        expect(200,call("GET","/api/admin/ordens-servico/"+f.order()+"/compensacao",null,customer(f.customer())));
         UUID billing=jdbc.queryForObject("SELECT operation_id FROM saga_operation WHERE intent='CANCEL_BUDGET'",UUID.class);
         assertThatThrownBy(() -> jdbc.update("UPDATE saga_operation SET budget_id=? WHERE operation_id=?",UUID.randomUUID(),billing))
                 .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
@@ -388,10 +386,10 @@ class SagaCompensationIT extends HttpPostgresSupport {
                 "-cp",System.getProperty("surefire.test.class.path",System.getProperty("java.class.path")),RecoveryProcess.class.getName(),
                 "--server.port=0","--spring.datasource.url="+ds.getJdbcUrl(),"--spring.datasource.username="+ds.getUsername(),
                 "--spring.datasource.password="+ds.getPassword(),"--app.branch.id="+BRANCH,
-                "--app.security.identity.gateway-trusted=true","--app.material-reference.provider=fixture",
+                "--app.material-reference.provider=fixture",
                 "--app.saga.recovery-enabled=false","--app.billing.sqs.enabled=false","--management.statsd.metrics.export.enabled=false",
-                "--app.saga.billing-url=http://127.0.0.1:"+SERVER.getAddress().getPort(),"--app.saga.billing-token=fixture-billing",
-                "--app.saga.inventory-url=http://127.0.0.1:"+SERVER.getAddress().getPort(),"--app.saga.inventory-token=fixture-inventory")
+                "--app.saga.billing-url=http://127.0.0.1:"+SERVER.getAddress().getPort(),
+                "--app.saga.inventory-url=http://127.0.0.1:"+SERVER.getAddress().getPort())
                 .redirectErrorStream(true).redirectOutput(log.toFile()).start();
         try {
             assertThat(process.waitFor(45,TimeUnit.SECONDS)).as("fresh JVM recovery completed: %s",log).isTrue();

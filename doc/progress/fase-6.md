@@ -18,8 +18,8 @@ do snapshot, inclusive depois da projeção.
 `GET /api/public/veiculos/{vehicleId}/historico-manutencoes?limit=20` retorna
 `entries` e `nextCursor`. A ordenação começa pela conclusão mais recente.
 Passe `nextCursor` como `cursor` na próxima requisição e encerre em cursor
-nulo. O limite vai de 1 a 50. A consulta exige usuário ativo com perfil ADMIN
-ou permissão `SERVICE_ORDER_TRACK_OWN` e titularidade do veículo. O PostgreSQL
+nulo. O limite vai de 1 a 50. A consulta não exige identidade, permissão ou
+titularidade do veículo. O PostgreSQL
 valida o vínculo do veículo com a filial do deployment a cada página. O
 DynamoDB filtra pela mesma filial. O cursor só usa a chave de uma revisão
 visível naquela filial.
@@ -28,7 +28,6 @@ visível naquela filial.
 | --- | --- |
 | 200 | Revisões já publicadas, possivelmente nenhuma enquanto o worker publica |
 | 400 | Parâmetro inválido ou cursor de outro veículo/filial |
-| 401/403 | Identidade ausente, permissão ausente ou cliente sem titularidade |
 | 404 | Veículo sem vínculo com a filial do deployment ou inexistente |
 | 503 | Integração desabilitada ou DynamoDB indisponível |
 
