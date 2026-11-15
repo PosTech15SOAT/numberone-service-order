@@ -6,7 +6,8 @@ import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.sqs.SqsClient;
-import software.amazon.awssdk.services.sqs.model.*;
+import software.amazon.awssdk.services.sqs.model.Message;
+import software.amazon.awssdk.services.sqs.model.MessageSystemAttributeName;
 import org.springframework.scheduling.annotation.Scheduled;
 import java.time.Duration;
 import java.time.Instant;
@@ -17,22 +18,24 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /** A single delivery per poll bounds processing below the visibility lease. */
 public class SqsBillingConsumer {
     private static final Logger log = LoggerFactory.getLogger(SqsBillingConsumer.class);
-    private final SqsClient sqs;
-    private final String queue;
+    private final BillingQueue queue;
     private final ProcessBillingEvent handler;
     private final BillingEventCodec codec;
     private final MeterRegistry metrics;
-    public SqsBillingConsumer(SqsClient sqs, String queue, ProcessBillingEvent handler,
+
+    public SqsBillingConsumer(SqsClient sqs, String queueUrl, ProcessBillingEvent handler,
                              BillingEventCodec codec, MeterRegistry metrics) {
-        this.sqs = sqs; this.queue = queue; this.handler = handler; this.codec = codec; this.metrics = metrics;
+        this(new SqsBillingQueue(sqs, queueUrl), handler, codec, metrics);
+    }
+
+    SqsBillingConsumer(BillingQueue queue, ProcessBillingEvent handler,
+                             BillingEventCodec codec, MeterRegistry metrics) {
+        this.queue = queue; this.handler = handler; this.codec = codec; this.metrics = metrics;
     }
     @Scheduled(fixedDelayString = "${app.billing.sqs.poll-delay-ms:1000}")
     public void poll() {
         try {
-            var response = sqs.receiveMessage(ReceiveMessageRequest.builder().queueUrl(queue)
-                    .waitTimeSeconds(20).visibilityTimeout(60).maxNumberOfMessages(1)
-                    .messageSystemAttributeNames(MessageSystemAttributeName.APPROXIMATE_RECEIVE_COUNT).build());
-            for (var message : response.messages()) { consume(message); }
+            for (var message : queue.receive()) { consume(message); }
         } catch (RuntimeException ex) {
             metrics.counter("os.billing.failure", "stage", "poll").increment();
             log.warn("Billing SQS poll failed exceptionType={}", ex.getClass().getSimpleName());
@@ -44,8 +47,7 @@ public class SqsBillingConsumer {
         var heartbeat = Executors.newSingleThreadScheduledExecutor(Thread.ofPlatform().daemon().factory());
         var renewal = heartbeat.scheduleAtFixedRate(() -> {
             try {
-                sqs.changeMessageVisibility(ChangeMessageVisibilityRequest.builder().queueUrl(queue)
-                        .receiptHandle(message.receiptHandle()).visibilityTimeout(60).build());
+                queue.renewVisibility(message.receiptHandle());
             } catch (RuntimeException ex) {
                 leaseFailed.set(true);
                 metrics.counter("os.billing.failure", "stage", "visibility").increment();
@@ -60,15 +62,17 @@ public class SqsBillingConsumer {
             log.info("Billing event eventId={} correlationId={} serviceOrderId={} sagaId={} outcome={}",
                     event.id(), event.correlationId(), event.orderId(), event.orderId(), outcome);
             if (!leaseFailed.get()) {
-                sqs.deleteMessage(DeleteMessageRequest.builder().queueUrl(queue).receiptHandle(message.receiptHandle()).build());
+                queue.acknowledge(message.receiptHandle());
             }
         } catch (RuntimeException ex) {
             metrics.counter("os.billing.failure", "stage", "delivery").increment();
             // Do not delete or copy to DLQ manually. The original body/ID is redelivered
             // after visibility expiry; platform RedrivePolicy moves it after five receives.
-            var reason = java.util.Set.of("EVENT_ID_COLLISION", "HANDLER_NOT_AVAILABLE_PHASE3", "BUDGET_COMPOSITION_CONFLICT",
+            var reason = java.util.Set.of("INVALID_ENVELOPE", "INVALID_BILLING_EVENT", "REVISION_OUT_OF_RANGE",
+                    "EVENT_ID_COLLISION", "HANDLER_NOT_AVAILABLE_PHASE3", "BUDGET_COMPOSITION_CONFLICT",
                     "SAGA_STATE_REQUIRES_RECONCILIATION").contains(String.valueOf(ex.getMessage())) ? ex.getMessage() : ex.getClass().getSimpleName();
-            log.warn("Billing delivery unacknowledged eventId={} correlationId={} serviceOrderId={} sagaId={} receiveCount={} reason={}",
+            log.warn("Billing delivery unacknowledged sqsMessageId={} eventId={} correlationId={} serviceOrderId={} sagaId={} receiveCount={} reason={}",
+                    message.messageId(),
                     identity == null ? null : identity.id(), identity == null ? null : identity.correlationId(),
                     identity == null ? null : identity.orderId(), identity == null ? null : identity.orderId(),
                     message.attributes().get(MessageSystemAttributeName.APPROXIMATE_RECEIVE_COUNT), reason);

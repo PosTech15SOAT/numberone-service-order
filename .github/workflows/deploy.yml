@@ -37,6 +37,7 @@ jobs:
       OS_BRANCH_ID: ${{ vars.OS_BRANCH_ID }}
       BILLING_SQS_ENABLED: ${{ vars.BILLING_SQS_ENABLED || 'false' }}
       BILLING_SQS_QUEUE_URL: ${{ vars.BILLING_SQS_QUEUE_URL }}
+      BILLING_SQS_BRIDGE_URL: ${{ vars.BILLING_SQS_BRIDGE_URL }}
       HISTORY_DYNAMODB_ENABLED: ${{ vars.HISTORY_DYNAMODB_ENABLED || 'false' }}
       HISTORY_DYNAMODB_TABLE: ${{ vars.HISTORY_DYNAMODB_TABLE }}
 
@@ -135,6 +136,7 @@ jobs:
             --from-literal=BILLING_SQS_ENABLED="$BILLING_SQS_ENABLED" \
             --from-literal=BILLING_SQS_MODE=dedicated \
             --from-literal=BILLING_SQS_QUEUE_URL="$BILLING_SQS_QUEUE_URL" \
+            --from-literal=BILLING_SQS_BRIDGE_URL="$BILLING_SQS_BRIDGE_URL" \
             --from-literal=BILLING_SQS_ENDPOINT= \
             --from-literal=HISTORY_DYNAMODB_ENABLED="$HISTORY_DYNAMODB_ENABLED" \
             --from-literal=HISTORY_DYNAMODB_TABLE="$HISTORY_DYNAMODB_TABLE" \

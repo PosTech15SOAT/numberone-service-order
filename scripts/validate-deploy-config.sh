@@ -31,7 +31,14 @@ try:
 except ValueError:
     raise SystemExit("OS_BRANCH_ID exige UUID válido.") from None
 if boolean("BILLING_SQS_ENABLED"):
-    queue_url("BILLING_SQS_QUEUE_URL")
+    bridge = os.environ.get("BILLING_SQS_BRIDGE_URL")
+    if bridge:
+        url = urlsplit(bridge)
+        if (url.scheme != "https" or not url.hostname or url.username is not None
+                or url.path not in ("", "/") or url.query or url.fragment):
+            raise SystemExit("BILLING_SQS_BRIDGE_URL exige a URL base HTTPS da ponte.")
+    else:
+        queue_url("BILLING_SQS_QUEUE_URL")
 if boolean("HISTORY_DYNAMODB_ENABLED"):
     require("HISTORY_DYNAMODB_TABLE")
 PYTHON
