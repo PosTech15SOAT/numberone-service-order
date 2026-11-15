@@ -30,10 +30,12 @@ public abstract class HttpPostgresSupport extends PostgresSupport {
 
     protected record Reply(int status, JsonNode body) { }
     protected Map<String, String> admin() {
-        return Map.of("X-Authenticated-Subject", "00000007-0000-4000-8000-000000000001");
+        return Map.of("X-Authenticated-Subject", "00000007-0000-4000-8000-000000000001",
+                "X-Authenticated-Status", "ACTIVE", "X-Authenticated-Roles", "ADMIN",
+                "X-Authenticated-Permissions", "ADMIN_ACCESS");
     }
     protected Map<String, String> customer(UUID id) {
-        return Map.of("X-Authenticated-Subject", "fixture-customer", "X-Authenticated-Status", "ACTIVE",
+        return Map.of("X-Authenticated-Subject", "00000007-0000-4000-8000-000000000002", "X-Authenticated-Status", "ACTIVE",
                 "X-Authenticated-Roles", "CUSTOMER", "X-Authenticated-Permissions", "SERVICE_ORDER_TRACK_OWN",
                 "X-Authenticated-Customer-Id", id.toString());
     }

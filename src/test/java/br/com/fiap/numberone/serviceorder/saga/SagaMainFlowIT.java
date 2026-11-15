@@ -261,7 +261,7 @@ class SagaMainFlowIT extends HttpPostgresSupport {
             assertThat(metrics.get("os.history.pending").gauge().value()).isEqualTo(1);
             assertThat(metrics.get("os.history.oldest.pending.seconds").gauge().value()).isPositive();
             expect(503, call("GET", historyPath(f.vehicle()), null, customer(f.customer())));
-            expect(503, call("GET", historyPath(f.vehicle()), null, customer(UUID.randomUUID())));
+            expect(404, call("GET", historyPath(f.vehicle()), null, customer(UUID.randomUUID())));
             expect(409, action(f.order(), "entregar"));
             settlementMode = "PAID"; // Simulates the employee collecting payment in Billing.
             processBillingEvent(payment(f.order(), UUID.randomUUID(), 1, false));
@@ -374,7 +374,7 @@ class SagaMainFlowIT extends HttpPostgresSupport {
         assertThat(historyRow(f.order())).containsEntry("attempts", 2);
     }
 
-    @Test void historyQueryPagesByVehicleAndBranchWithoutIdentityOnEveryRequest() throws Exception {
+    @Test void historyQueryScopesByOwnerAndBranchAcrossPages() throws Exception {
         var f = diagnosisFixture();
         complete(f);
         var secondOrder = createOrder(f.customer(), f.vehicle());
@@ -407,13 +407,13 @@ class SagaMainFlowIT extends HttpPostgresSupport {
         var oldest = expect(200, call("GET", path + "?limit=1&cursor=" + cursor, null, owner));
         assertThat(oldest.path("entries").get(0).path("serviceOrderId").asString()).isEqualTo(f.order().toString());
         assertThat(expect(200, call("GET", path, null)).path("entries").size()).isEqualTo(2);
-        expect(200, call("GET", path + "?cursor=" + cursor, null, customer(anotherCustomer)));
+        expect(404, call("GET", path + "?cursor=" + cursor, null, customer(anotherCustomer)));
         expect(400, call("GET", historyPath(anotherVehicle) + "?cursor=" + cursor, null, customer(anotherCustomer)));
         assertThat(expect(200, call("GET", historyPath(anotherVehicle), null, customer(anotherCustomer))).path("entries").size()).isZero();
         var noPermission = new HashMap<>(owner);
         noPermission.put("X-Authenticated-Permissions", "");
-        expect(200, call("GET", path, null, noPermission));
-        expect(200, call("GET", path, null, Map.of()));
+        expect(403, call("GET", path, null, noPermission));
+        expect(401, call("GET", path, null, Map.of()));
         expect(400, call("GET", path + "?limit=51", null, owner));
         expect(400, call("GET", path + "?cursor=invalid", null, owner));
     }
