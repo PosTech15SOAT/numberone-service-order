@@ -66,9 +66,11 @@ public class SqsBillingConsumer {
             metrics.counter("os.billing.failure", "stage", "delivery").increment();
             // Do not delete or copy to DLQ manually. The original body/ID is redelivered
             // after visibility expiry; platform RedrivePolicy moves it after five receives.
-            var reason = java.util.Set.of("EVENT_ID_COLLISION", "HANDLER_NOT_AVAILABLE_PHASE3", "BUDGET_COMPOSITION_CONFLICT",
+            var reason = java.util.Set.of("INVALID_ENVELOPE", "INVALID_BILLING_EVENT", "REVISION_OUT_OF_RANGE",
+                    "EVENT_ID_COLLISION", "HANDLER_NOT_AVAILABLE_PHASE3", "BUDGET_COMPOSITION_CONFLICT",
                     "SAGA_STATE_REQUIRES_RECONCILIATION").contains(String.valueOf(ex.getMessage())) ? ex.getMessage() : ex.getClass().getSimpleName();
-            log.warn("Billing delivery unacknowledged eventId={} correlationId={} serviceOrderId={} sagaId={} receiveCount={} reason={}",
+            log.warn("Billing delivery unacknowledged sqsMessageId={} eventId={} correlationId={} serviceOrderId={} sagaId={} receiveCount={} reason={}",
+                    message.messageId(),
                     identity == null ? null : identity.id(), identity == null ? null : identity.correlationId(),
                     identity == null ? null : identity.orderId(), identity == null ? null : identity.orderId(),
                     message.attributes().get(MessageSystemAttributeName.APPROXIMATE_RECEIVE_COUNT), reason);
