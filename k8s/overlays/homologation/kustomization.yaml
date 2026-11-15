@@ -31,6 +31,18 @@ patches:
           spec:
             containers:
               - name: os
+                volumeMounts:
+                  - name: billing-sqs-identity
+                    mountPath: /var/run/secrets/numberone-sqs
+                    readOnly: true
                 env:
                   - name: DD_ENV
                     value: homologation
+            volumes:
+              - name: billing-sqs-identity
+                projected:
+                  sources:
+                    - serviceAccountToken:
+                        path: token
+                        audience: numberone-billing-sqs-bridge
+                        expirationSeconds: 900
