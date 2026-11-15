@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.numberone.invalid/saga/v1/envelope.schema.json",
+  "type": "object",
+  "properties": {
+    "messageId": {
+      "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/uuid"
+    },
+    "sagaId": {
+      "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/uuid"
+    },
+    "serviceOrderId": {
+      "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/uuid"
+    },
+    "branchId": {
+      "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/uuid"
+    },
+    "attemptId": {
+      "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/uuid"
+    },
+    "operationId": {
+      "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/uuid"
+    },
+    "type": {
+      "enum": [
+        "CreateBudget",
+        "BudgetSent",
+        "BudgetCreationFailed",
+        "BudgetNotificationFailed",
+        "BudgetApproved",
+        "BudgetRejected",
+        "ReserveMaterials",
+        "MaterialsReserved",
+        "MaterialsReservationFailed",
+        "RequestPayment",
+        "PaymentPending",
+        "PaymentConfirmed",
+        "PaymentFailed",
+        "ConsumeMaterials",
+        "MaterialsConsumed",
+        "MaterialsConsumptionFailed",
+        "ReleaseMaterials",
+        "MaterialsReleased",
+        "MaterialsAlreadyConsumed",
+        "CancelBilling",
+        "BillingCompensated"
+      ]
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "causationId": {
+      "anyOf": [
+        {
+          "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/uuid"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "occurredAt": {
+      "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/utc"
+    },
+    "producer": {
+      "enum": [
+        "os-service",
+        "billing-service",
+        "inventory-service"
+      ]
+    },
+    "correlationId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "traceparent": {
+      "type": "string",
+      "pattern": "^00-(?!0{32}-)[0-9a-f]{32}-(?!0{16}-)[0-9a-f]{16}-[0-9a-f]{2}$"
+    },
+    "payload": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "messageId",
+    "sagaId",
+    "serviceOrderId",
+    "branchId",
+    "attemptId",
+    "operationId",
+    "type",
+    "schemaVersion",
+    "causationId",
+    "occurredAt",
+    "producer",
+    "correlationId",
+    "payload"
+  ],
+  "additionalProperties": true
+}

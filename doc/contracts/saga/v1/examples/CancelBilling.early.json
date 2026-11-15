@@ -1,0 +1,18 @@
+{
+  "messageId": "00000119-0000-4000-8000-000000000001",
+  "sagaId": "00000002-0000-4000-8000-000000000001",
+  "serviceOrderId": "00000003-0000-4000-8000-000000000001",
+  "branchId": "00000004-0000-4000-8000-000000000001",
+  "attemptId": "00000005-0000-4000-8000-000000000001",
+  "operationId": "00000066-0000-4000-8000-000000000001",
+  "type": "CancelBilling",
+  "schemaVersion": 1,
+  "causationId": "00000117-0000-4000-8000-000000000001",
+  "occurredAt": "2026-10-31T15:00:00Z",
+  "producer": "os-service",
+  "correlationId": "demo-os-phase1",
+  "payload": {
+    "budgetRevision": 1,
+    "reasonCode": "CUSTOMER_CANCELLED"
+  }
+}

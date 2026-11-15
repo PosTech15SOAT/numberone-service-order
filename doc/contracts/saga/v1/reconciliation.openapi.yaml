@@ -1,0 +1,343 @@
+openapi: 3.0.3
+info:
+  title: NumberOne — consultas de reconciliação propostas
+  version: 1.0.0-draft
+  description: Rascunho para Anderson/Julio/Marcelo. Sem implementação. GET não muta
+    estoque/cobrança nem consulta Mercado Pago pela OS. UNKNOWN/404 não significa
+    ausência definitiva de efeito.
+servers:
+- url: https://internal.example.invalid
+  description: Placeholder; URL por serviço e ambiente a confirmar
+security:
+- ServiceIdentity: []
+paths:
+  /internal/v1/material-operations/{operationId}:
+    get:
+      operationId: getMaterialOperation
+      tags:
+      - Inventory
+      parameters:
+      - name: operationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      responses:
+        '200':
+          description: Estado persistido da operação original
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaterialOperation'
+        '401':
+          description: Identidade de serviço ausente/inválida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Serviço sem permissão ou filial incompatível
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: 'UNKNOWN: ausência de registro não prova ausência de efeito.
+            Nunca compensar/concluir só pelo 404.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: Indisponibilidade técnica; repetir consulta sem criar nova
+            operação
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /internal/v1/billing-attempts/{attemptId}:
+    get:
+      operationId: getBillingAttempt
+      tags:
+      - Billing
+      parameters:
+      - name: attemptId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 128
+      responses:
+        '200':
+          description: Estado persistido; Billing consulta seu provedor e reconcilia
+            resultados incertos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BillingAttempt'
+        '401':
+          description: Identidade de serviço ausente/inválida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Serviço sem permissão ou filial incompatível
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: 'UNKNOWN: ausência de registro não prova ausência de efeito.
+            Nunca compensar/concluir só pelo 404.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '503':
+          description: Indisponibilidade técnica; repetir consulta sem criar nova
+            operação
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+components:
+  securitySchemes:
+    ServiceIdentity:
+      type: http
+      scheme: bearer
+      description: 'PROPOSTA: credencial de serviço, nunca JWT de cliente. Emissão,
+        audiência, rotação e rede/mTLS a validar com Marcelo. Sem implementação nesta
+        fase.'
+  schemas:
+    Problem:
+      type: object
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        correlationId:
+          type: string
+      required:
+      - type
+      - title
+      - status
+      additionalProperties: true
+    ResultMessage:
+      type: object
+      properties:
+        messageId:
+          type: string
+          format: uuid
+        sagaId:
+          type: string
+          format: uuid
+        serviceOrderId:
+          type: string
+          format: uuid
+        branchId:
+          type: string
+          format: uuid
+        attemptId:
+          type: string
+          format: uuid
+        operationId:
+          type: string
+          format: uuid
+        type:
+          type: string
+        schemaVersion:
+          type: integer
+          enum:
+          - 1
+        causationId:
+          type: string
+          format: uuid
+        occurredAt:
+          type: string
+          format: date-time
+          pattern: Z$
+        producer:
+          type: string
+          enum:
+          - inventory-service
+          - billing-service
+        correlationId:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+      required:
+      - messageId
+      - sagaId
+      - serviceOrderId
+      - branchId
+      - attemptId
+      - operationId
+      - type
+      - schemaVersion
+      - causationId
+      - occurredAt
+      - producer
+      - correlationId
+      - payload
+      additionalProperties: true
+      description: Resultado persistido completo e imutável; validar adicionalmente
+        contra message.schema.json e schema tipado v1. Não sintetizar novo evento
+        ou operationId a cada GET. Guardas iguais aos eventos SQS.
+    MaterialOperation:
+      type: object
+      properties:
+        operationId:
+          type: string
+          format: uuid
+        attemptId:
+          type: string
+          format: uuid
+        serviceOrderId:
+          type: string
+          format: uuid
+        branchId:
+          type: string
+          format: uuid
+        state:
+          type: string
+          enum:
+          - PENDING
+          - APPLIED
+          - REJECTED
+          - UNKNOWN
+        observedAt:
+          type: string
+          format: date-time
+          pattern: Z$
+        resultMessage:
+          $ref: '#/components/schemas/ResultMessage'
+      required:
+      - operationId
+      - state
+      - observedAt
+      additionalProperties: true
+      oneOf:
+      - properties:
+          state:
+            enum:
+            - PENDING
+            - UNKNOWN
+      - properties:
+          state:
+            enum:
+            - APPLIED
+            - REJECTED
+        required:
+        - attemptId
+        - serviceOrderId
+        - branchId
+        - resultMessage
+    BillingAttempt:
+      type: object
+      properties:
+        attemptId:
+          type: string
+          format: uuid
+        serviceOrderId:
+          type: string
+          format: uuid
+        branchId:
+          type: string
+          format: uuid
+        state:
+          type: string
+          enum:
+          - UNKNOWN
+          - PENDING
+          - CONFIRMED
+          - FAILED
+          - NOT_CHARGED
+          - CANCELLED
+          - REFUNDED
+        externalOperationPending:
+          type: boolean
+        observedAt:
+          type: string
+          format: date-time
+          pattern: Z$
+        budgetId:
+          type: string
+          format: uuid
+        budgetRevision:
+          type: integer
+          minimum: 1
+        paymentAttemptId:
+          type: string
+          format: uuid
+        currency:
+          type: string
+          pattern: ^[A-Z]{3}$
+        totalAmount:
+          type: string
+          pattern: ^(0|[1-9][0-9]*)\.[0-9]{2}$
+        resultMessage:
+          $ref: '#/components/schemas/ResultMessage'
+      required:
+      - attemptId
+      - state
+      - externalOperationPending
+      - observedAt
+      additionalProperties: true
+      oneOf:
+      - properties:
+          state:
+            enum:
+            - UNKNOWN
+            - PENDING
+      - properties:
+          state:
+            enum:
+            - CONFIRMED
+            - REFUNDED
+          externalOperationPending:
+            enum:
+            - false
+        required:
+        - serviceOrderId
+        - branchId
+        - budgetId
+        - budgetRevision
+        - paymentAttemptId
+        - currency
+        - totalAmount
+        - resultMessage
+      - properties:
+          state:
+            enum:
+            - FAILED
+            - NOT_CHARGED
+            - CANCELLED
+          externalOperationPending:
+            enum:
+            - false
+        required:
+        - serviceOrderId
+        - branchId
+        - budgetRevision
+        - resultMessage

@@ -1,0 +1,89 @@
+# Explicit history journey: OS + Billing real, Inventory through existing Mockoon.
+# Usage: docker compose -p numberone-r2-history -f compose.yaml -f compose.history.yaml up -d
+services:
+  os:
+    mem_limit: 768m
+    image: numberone-service-order:r2-20261114
+    environment:
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=65 -XX:ActiveProcessorCount=2
+      BILLING_BASE_URL: http://billing:8081
+      BILLING_SQS_ENABLED: 'true'
+      BILLING_SQS_MODE: dedicated
+      BILLING_SQS_ENDPOINT: http://localstack:4566
+      BILLING_SQS_QUEUE_URL: http://localstack:4566/queue/us-east-1/000000000000/numberone-billing-events
+      HISTORY_DYNAMODB_ENABLED: 'true'
+      SPRING_TASK_SCHEDULING_POOL_SIZE: '3'
+      HISTORY_WORKER_ENABLED: 'true'
+      HISTORY_DYNAMODB_TABLE: vehicle_maintenance_history
+      HISTORY_DYNAMODB_ENDPOINT: http://localstack:4566
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_EC2_METADATA_DISABLED: 'true'
+    depends_on:
+      localstack: {condition: service_healthy}
+  localstack:
+    image: localstack/localstack:4.14.0
+    environment:
+      SERVICES: sqs,dynamodb
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_EC2_METADATA_DISABLED: 'true'
+      SQS_ENDPOINT_STRATEGY: path
+      LOCALSTACK_HOST: localstack:4566
+      DISABLE_EVENTS: '1'
+    volumes:
+      - ./docker/localstack/20-history-dynamodb.sh:/etc/localstack/init/ready.d/20-history-dynamodb.sh:ro
+      - ../numberone-billing-service/dev/kind/k8s/localstack/init-sqs.sh:/etc/localstack/init/ready.d/10-billing-sqs.sh:ro
+    healthcheck:
+      test: [CMD-SHELL, 'test -f /tmp/billing-sqs-ready && awslocal --endpoint-url=http://localhost:4566 --region us-east-1 dynamodb describe-table --table-name vehicle_maintenance_history >/dev/null']
+      interval: 5s
+      timeout: 5s
+      retries: 60
+  billing-postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: billing_history
+      POSTGRES_USER: billing_local
+      POSTGRES_PASSWORD: local-development-only
+    volumes: [billing-history-postgres:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U billing_local -d billing_history']
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  billing:
+    mem_limit: 768m
+    image: numberone-billing-service:r2-20261114-v2
+    ports: ['127.0.0.1:${HISTORY_BILLING_PORT:-19081}:8081']
+    environment:
+      SERVER_PORT: '8081'
+      SPRING_PROFILES_ACTIVE: local
+      DB_URL: jdbc:postgresql://billing-postgres:5432/billing_history
+      DB_USERNAME: billing_local
+      DB_PASSWORD: local-development-only
+      OS_SERVICE_BASE_URL: http://os:8080
+      INVENTORY_SERVICE_BASE_URL: http://mockoon-inventory:3000
+      OUTBOX_ENABLED: 'true'
+      SQS_ENDPOINT: http://localstack:4566
+      SQS_QUEUE_URL: http://localstack:4566/queue/us-east-1/000000000000/numberone-billing-events
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_EC2_METADATA_DISABLED: 'true'
+      BUDGET_APPROVAL_BASE_URL: ${BUDGET_APPROVAL_BASE_URL:-http://localhost:${HISTORY_BILLING_PORT:-19081}/api/public/orcamentos-ordem-servico/decisao}
+      BUDGET_NOTIFICATIONS_ENABLED: 'false'
+      MERCADO_PAGO_ENABLED: 'false'
+      MERCADO_PAGO_WEBHOOK_ENABLED: 'false'
+      JAVA_TOOL_OPTIONS: '-XX:MaxRAMPercentage=50 -XX:ActiveProcessorCount=2'
+    depends_on:
+      billing-postgres: {condition: service_healthy}
+      localstack: {condition: service_healthy}
+  mockoon-inventory:
+    image: mockoon/cli:9.9.0
+    command: ['--data', '/mockoon/inventory.json', '--port', '3000', '--hostname', '0.0.0.0', '--disable-admin-api']
+    volumes:
+      - ../numberone-billing-service/docker/mockoon/inventory-service.json:/mockoon/inventory.json:ro
+volumes:
+  billing-history-postgres:

@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.numberone.invalid/saga/v1/commands/RequestPayment.schema.json",
+  "title": "RequestPayment",
+  "description": "Rascunho v1. os-service -> billing-service. Não aprovado pela equipe.",
+  "allOf": [
+    {
+      "$ref": "https://contracts.numberone.invalid/saga/v1/envelope.schema.json"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "RequestPayment"
+        },
+        "producer": {
+          "const": "os-service"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "budgetRevision": {
+              "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/revision"
+            },
+            "budgetId": {
+              "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/uuid"
+            },
+            "currency": {
+              "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/currency"
+            },
+            "totalAmount": {
+              "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/money"
+            }
+          },
+          "required": [
+            "budgetRevision",
+            "budgetId",
+            "currency",
+            "totalAmount"
+          ],
+          "additionalProperties": true
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    }
+  ]
+}

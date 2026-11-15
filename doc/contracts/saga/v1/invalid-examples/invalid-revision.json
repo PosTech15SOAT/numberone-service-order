@@ -1,0 +1,37 @@
+{
+  "messageId": "00000104-0000-4000-8000-000000000001",
+  "sagaId": "00000002-0000-4000-8000-000000000001",
+  "serviceOrderId": "00000003-0000-4000-8000-000000000001",
+  "branchId": "00000004-0000-4000-8000-000000000001",
+  "attemptId": "00000005-0000-4000-8000-000000000001",
+  "operationId": "00000061-0000-4000-8000-000000000001",
+  "type": "BudgetApproved",
+  "schemaVersion": 1,
+  "causationId": "00000100-0000-4000-8000-000000000001",
+  "occurredAt": "2026-10-31T15:00:00Z",
+  "producer": "billing-service",
+  "correlationId": "demo-os-phase1",
+  "payload": {
+    "budgetRevision": 0,
+    "budgetId": "00000010-0000-4000-8000-000000000001",
+    "currency": "BRL",
+    "totalAmount": "350.00",
+    "approvedAt": "2026-10-31T15:00:00Z",
+    "approvedItems": [
+      {
+        "serviceOrderItemId": "00000007-0000-4000-8000-000000000001",
+        "automotiveServiceId": "00000009-0000-4000-8000-000000000001",
+        "description": "Servico demonstrativo",
+        "quantity": 1,
+        "laborUnitPrice": "150.00",
+        "materials": [
+          {
+            "materialId": "00000008-0000-4000-8000-000000000001",
+            "quantity": 1,
+            "approvedUnitPrice": "200.00"
+          }
+        ]
+      }
+    ]
+  }
+}

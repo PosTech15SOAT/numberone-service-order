@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.numberone.invalid/saga/v1/events/BudgetCreationFailed.schema.json",
+  "title": "BudgetCreationFailed",
+  "description": "Rascunho v1. billing-service -> os-service. Não aprovado pela equipe.",
+  "allOf": [
+    {
+      "$ref": "https://contracts.numberone.invalid/saga/v1/envelope.schema.json"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "BudgetCreationFailed"
+        },
+        "producer": {
+          "const": "billing-service"
+        },
+        "causationId": {
+          "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/uuid"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "budgetRevision": {
+              "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/revision"
+            },
+            "reasonCode": {
+              "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/reason"
+            },
+            "detail": {
+              "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/detail"
+            }
+          },
+          "required": [
+            "budgetRevision",
+            "reasonCode"
+          ],
+          "additionalProperties": true
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "description": "Schema válido; inválido para iniciar a composição vigente. Cenário documental, não execução da Saga.",
+  "current": {
+    "serviceOrderId": "00000001-0000-4000-8000-000000000001",
+    "compositionVersion": 4,
+    "budgetVersion": 2,
+    "budgetId": "02000000-0000-4000-8000-000000000002"
+  },
+  "snapshots": [
+    {
+      "compositionVersion": 3,
+      "items": [
+        {
+          "serviceOrderItemId": "00000004-0000-4000-8000-000000000001",
+          "automotiveServiceId": "00000006-0000-4000-8000-000000000001",
+          "serviceAmount": "150.00",
+          "supplies": [
+            {
+              "inventoryItemId": "00000005-0000-4000-8000-000000000001",
+              "quantity": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "compositionVersion": 4,
+      "items": [
+        {
+          "serviceOrderItemId": "00000004-0000-4000-8000-000000000001",
+          "automotiveServiceId": "00000006-0000-4000-8000-000000000001",
+          "serviceAmount": "150.00",
+          "supplies": [
+            {
+              "inventoryItemId": "00000005-0000-4000-8000-000000000001",
+              "quantity": 2
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "incoming": {
+    "eventId": "66000000-0000-4000-8000-000000000002",
+    "eventType": "OrcamentoAprovado",
+    "schemaVersion": 1,
+    "occurredAt": "2026-11-04T13:00:00Z",
+    "correlationId": "77000000-0000-4000-8000-000000000001",
+    "payload": {
+      "serviceOrderId": "00000001-0000-4000-8000-000000000001",
+      "budgetId": "00000002-0000-4000-8000-000000000001",
+      "budgetVersion": 1,
+      "approvedAmount": "350.00",
+      "currency": "BRL",
+      "compositionVersion": 3
+    }
+  },
+  "expected": {
+    "outcome": "IGNORED_STALE",
+    "mayStart": false,
+    "reason": "budgetVersion e compositionVersion anteriores; nunca substituir pelo snapshot atual."
+  }
+}

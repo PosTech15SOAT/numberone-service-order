@@ -1,0 +1,31 @@
+{
+  "scope": "schema-and-fixture-validation-only",
+  "approvedContract": false,
+  "schemaFiles": 24,
+  "messageTypes": 21,
+  "validFixtures": 31,
+  "invalidFixtures": 21,
+  "checks": 21,
+  "failures": 0,
+  "errors": 0,
+  "successful": true,
+  "remoteSchemaRetrieval": "denied",
+  "networkAccess": "denied-by-python-audit-hook",
+  "legacyPackage": "v1 (regression only; original counts above)",
+  "activePackage": {
+    "package": "v2",
+    "packageVersion": "2.0.0-os-baseline.1",
+    "approvedContract": false,
+    "schemaFiles": 9,
+    "enabledEventTypes": 5,
+    "conditionalEventTypes": 0,
+    "validEventFixtures": 6,
+    "invalidEventFixtures": 21,
+    "readyForOsImplementation": true,
+    "conditionalEventFixtures": 0,
+    "proposalFixtures": 2,
+    "openapiDocuments": 4,
+    "validHttpFixtures": 46,
+    "invalidHttpFixtures": 15
+  }
+}

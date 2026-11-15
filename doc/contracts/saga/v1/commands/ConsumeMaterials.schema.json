@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.numberone.invalid/saga/v1/commands/ConsumeMaterials.schema.json",
+  "title": "ConsumeMaterials",
+  "description": "Rascunho v1. os-service -> inventory-service. Não aprovado pela equipe.",
+  "allOf": [
+    {
+      "$ref": "https://contracts.numberone.invalid/saga/v1/envelope.schema.json"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "ConsumeMaterials"
+        },
+        "producer": {
+          "const": "os-service"
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "budgetRevision": {
+              "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/revision"
+            },
+            "reservationId": {
+              "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/uuid"
+            },
+            "serviceOrderItemId": {
+              "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/uuid"
+            }
+          },
+          "required": [
+            "budgetRevision",
+            "reservationId",
+            "serviceOrderItemId"
+          ],
+          "additionalProperties": true
+        }
+      },
+      "required": [],
+      "additionalProperties": true
+    }
+  ]
+}

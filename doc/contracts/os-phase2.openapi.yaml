@@ -1,0 +1,182 @@
+openapi: 3.0.3
+info:
+  title: NumberOne OS — recorte local da fase 2
+  version: 2.0.0-phase2
+  description: >
+    Recorte da API implementada na fase 2. As rotas administrativas exigem
+    identidade autorizada e escopo de filial. O acompanhamento também exige
+    permissão e vínculo com o cliente, salvo acesso administrativo.
+paths:
+  /api/admin/ordens-servico/{id}:
+    parameters: [ { $ref: '#/components/parameters/Id' } ]
+    get:
+      responses:
+        '200': { $ref: '#/components/responses/Order' }
+  /api/public/ordens-servico/{id}/acompanhamento:
+    parameters: [ { $ref: '#/components/parameters/Id' } ]
+    get:
+      responses:
+        '200': { $ref: '#/components/responses/Order' }
+        '401': { description: Identidade ausente ou inválida. }
+        '403': { description: Permissão ou vínculo com o cliente ausente. }
+        '404': { description: OS inexistente ou fora da filial. }
+  /api/admin/ordens-servico/{id}/iniciar:
+    parameters: [ { $ref: '#/components/parameters/Id' } ]
+    patch:
+      description: Exige aprovação vigente. A integração de início está bloqueada nesta fase.
+      responses:
+        '409': { $ref: '#/components/responses/StartConflict' }
+  /api/admin/itens-ordem-servico/{id}/iniciar:
+    parameters: [ { $ref: '#/components/parameters/Id' } ]
+    patch:
+      description: Exige aprovação vigente. A integração de início está bloqueada nesta fase.
+      responses:
+        '409': { $ref: '#/components/responses/StartConflict' }
+  /api/admin/itens-ordem-servico/{id}/concluir:
+    parameters: [ { $ref: '#/components/parameters/Id' } ]
+    patch:
+      description: Exige início confirmado e consumo confirmado dos insumos aplicáveis.
+      responses:
+        '200':
+          description: Item tecnicamente concluído.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Item' }
+        '409': { $ref: '#/components/responses/RuleConflict' }
+  /api/admin/ordens-servico/{id}/concluir:
+    parameters: [ { $ref: '#/components/parameters/Id' } ]
+    patch:
+      description: Conclui o reparo quando os itens aplicáveis estão concluídos. Pagamento pode ocorrer depois.
+      responses:
+        '200': { $ref: '#/components/responses/Order' }
+        '409': { $ref: '#/components/responses/RuleConflict' }
+  /api/admin/ordens-servico/{id}/entregar:
+    parameters: [ { $ref: '#/components/parameters/Id' } ]
+    patch:
+      description: Entrega bloqueada até a consulta de quitação CT-07.
+      responses:
+        '409':
+          description: ORDER_NOT_COMPLETED ou SETTLEMENT_CHECK_NOT_AVAILABLE.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RuleError' }
+components:
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    Order:
+      description: Projeção local da ordem de serviço.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Order' }
+    RuleConflict:
+      description: Guarda de domínio ou de persistência impede a operação.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/RuleError' }
+    StartConflict:
+      description: BUDGET_NOT_APPROVED, ORDER_NOT_READY_FOR_EXECUTION ou EXECUTION_INTEGRATION_NOT_AVAILABLE.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/RuleError' }
+  schemas:
+    RuleError:
+      type: object
+      required: [status, message, errors]
+      properties:
+        status: { type: integer }
+        message: { type: string }
+        code: { type: string }
+        errors:
+          type: array
+          items: { type: string }
+    Order:
+      type: object
+      required: [id, idVeiculo, status, executionState, budgetVersion, budgetRevision, compositionVersion,
+        itensServico, estimativa, orcamentoAprovado, pagamentoConfirmado]
+      properties:
+        id: &uuid { type: string, format: uuid }
+        idVeiculo: *uuid
+        status:
+          type: string
+          enum: [RECEBIDA, EM_DIAGNOSTICO, AGUARDANDO_APROVACAO, APROVADA, REJEITADA, EM_EXECUCAO,
+            FINALIZADA, CANCELADA, ENTREGUE]
+        executionState:
+          type: string
+          description: Indicador local, inclusive para leitura de registros migrados.
+          enum: [RECEIVED, IN_DIAGNOSIS, WAITING_APPROVAL, APPROVED, REJECTED, READY_FOR_EXECUTION,
+            IN_PROGRESS, COMPLETED, CANCELLED, DELIVERED]
+        budgetVersion: &version { type: integer, minimum: 1 }
+        budgetRevision: *version
+        compositionVersion: *version
+        dataHoraEntrega: &localDateTime { type: string, nullable: true }
+        itensServico:
+          type: array
+          items: { $ref: '#/components/schemas/Item' }
+        estimativa:
+          type: object
+          required: [tipo, currency, valorEstimado]
+          properties:
+            tipo: { type: string, enum: [ESTIMATIVA] }
+            currency: { type: string }
+            valorEstimado: { type: string }
+        orcamentoAprovado:
+          type: object
+          nullable: true
+          required: [budgetId, budgetVersion, budgetRevision, compositionVersion, currency, totalAmount, approvedItems]
+          properties:
+            budgetId: *uuid
+            budgetVersion: *version
+            budgetRevision: *version
+            compositionVersion: { type: integer, minimum: 1, nullable: true }
+            currency: { type: string }
+            totalAmount: { type: string }
+            approvedItems:
+              type: array
+              description: Snapshot técnico referenciado, ou JSON histórico da V1 quando a versão do vínculo é nula.
+              items: {}
+        pagamentoConfirmado:
+          type: boolean
+          description: Projeção histórica. A quitação oficial para entrega depende de CT-07.
+    Item:
+      type: object
+      required: [id, status, executionState, insumos]
+      properties:
+        id: *uuid
+        status:
+          type: string
+          enum: [PENDENTE, AGUARDANDO_PECAS_E_INSUMOS, EM_EXECUCAO, FINALIZADO, CANCELADO]
+        executionState:
+          type: string
+          enum: [PENDING, WAITING_FOR_PARTS_AND_SUPPLIES, START_PENDING, IN_PROGRESS, COMPLETED, CANCELLED]
+        dataHoraInicio: *localDateTime
+        dataHoraFim: *localDateTime
+        insumos:
+          type: array
+          items: { $ref: '#/components/schemas/Material' }
+    Material:
+      type: object
+      required: [idMaterial, quantidadePrevista, quantidadeConsumida, consumoConfirmado]
+      properties:
+        idMaterial: *uuid
+        quantidadePrevista: { type: integer, minimum: 1 }
+        quantidadeReservada:
+          type: integer
+          minimum: 0
+          deprecated: true
+          description: Auditoria de reserva na V1.
+        reservationId:
+          type: string
+          format: uuid
+          nullable: true
+          deprecated: true
+        quantidadeConsumida: { type: integer, minimum: 0 }
+        consumoConfirmado: { type: boolean }
+        consumptionOperationId: { type: string, format: uuid, nullable: true }
+        movementIds:
+          type: array
+          items: *uuid

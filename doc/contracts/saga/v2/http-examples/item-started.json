@@ -1,0 +1,8 @@
+{
+  "id": "00000004-0000-4000-8000-000000000001",
+  "idOrdemServico": "00000001-0000-4000-8000-000000000001",
+  "status": "EM_EXECUCAO",
+  "executionState": "IN_PROGRESS",
+  "startOperationId": "00000008-0000-4000-8000-000000000001",
+  "valorEstimadoUnitario": "150.00"
+}

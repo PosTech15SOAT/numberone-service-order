@@ -1,0 +1,13 @@
+{
+  "id": "00000001-0000-4000-8000-000000000001",
+  "status": "APROVADA",
+  "sagaState": "READY_FOR_EXECUTION",
+  "itensServico": [
+    {
+      "id": "00000004-0000-4000-8000-000000000001",
+      "status": "AGUARDANDO_PECAS_E_INSUMOS",
+      "executionState": "WAITING_FOR_PARTS_AND_SUPPLIES",
+      "startOperationId": "00000008-0000-4000-8000-000000000001"
+    }
+  ]
+}

@@ -1,0 +1,335 @@
+[
+  {
+    "scenario": "Conflito financeiro exige revisao",
+    "saga": "MANUAL_INTERVENTION",
+    "operations": [
+      {
+        "operation_id": "0c9444f5-46a9-4d59-8818-5769fc6be98c",
+        "original_operation_id": null,
+        "intent": "START_ITEM",
+        "state": "SKIPPED",
+        "request": "{\"items\": [{\"quantity\": 1, \"inventoryItemId\": \"80000000-0000-4000-8000-000000000001\"}], \"operationId\": \"0c9444f5-46a9-4d59-8818-5769fc6be98c\", \"serviceOrderId\": \"38a8ce05-23cc-4e5c-aaa6-bbf1143a85b1\", \"responsibleUserId\": \"00000007-0000-4000-8000-000000000001\", \"serviceOrderItemId\": \"db30145c-014e-4f99-86b5-309c17f6d9f8\"}",
+        "result": null,
+        "late_result": null,
+        "attempts": 0
+      },
+      {
+        "operation_id": "704b7f8b-f6e5-42b5-988b-e1aa77121c10",
+        "original_operation_id": "0c9444f5-46a9-4d59-8818-5769fc6be98c",
+        "intent": "RESOLVE_STOCK",
+        "state": "SUCCEEDED",
+        "request": "{\"reason\": \"CANCELLED_BEFORE_USE\", \"evidence\": {\"reference\": \"inspection-fixture\", \"verifiedAt\": \"2026-11-08T20:49:05.327639800Z\", \"verifiedBy\": \"00000007-0000-4000-8000-000000000001\"}, \"compensationId\": \"704b7f8b-f6e5-42b5-988b-e1aa77121c10\", \"unusedConfirmed\": true}",
+        "result": "{\"code\": null, \"result\": \"CLOSED\", \"movements\": [], \"operationId\": \"0c9444f5-46a9-4d59-8818-5769fc6be98c\", \"compensationId\": \"704b7f8b-f6e5-42b5-988b-e1aa77121c10\"}",
+        "late_result": null,
+        "attempts": 2
+      },
+      {
+        "operation_id": "29a04d44-7891-4157-afbb-360067d17ab8",
+        "original_operation_id": null,
+        "intent": "CANCEL_BUDGET",
+        "state": "NEEDS_REVIEW",
+        "request": "{\"reason\": \"SERVICE_ORDER_CANCELLED\", \"operationId\": \"29a04d44-7891-4157-afbb-360067d17ab8\", \"budgetVersion\": 1}",
+        "result": null,
+        "late_result": null,
+        "attempts": 1
+      }
+    ],
+    "inventory": [
+      {
+        "id": "0c9444f5-46a9-4d59-8818-5769fc6be98c",
+        "result": "{\"result\": \"CLOSED\", \"movements\": [], \"operationId\": \"0c9444f5-46a9-4d59-8818-5769fc6be98c\", \"compensationId\": \"704b7f8b-f6e5-42b5-988b-e1aa77121c10\"}"
+      }
+    ],
+    "movements": [],
+    "balances": [
+      5,
+      5
+    ]
+  },
+  {
+    "scenario": "CT-11 fecha contexto sem orcamento",
+    "saga": "COMPENSATED",
+    "operations": [
+      {
+        "operation_id": "4232d97d-dac1-4ac9-a5f3-82d3ce5186e8",
+        "original_operation_id": null,
+        "intent": "CLOSE_BUDGET_CONTEXT",
+        "state": "SUCCEEDED",
+        "request": "{\"reason\": \"SERVICE_ORDER_CANCELLED\", \"operationId\": \"4232d97d-dac1-4ac9-a5f3-82d3ce5186e8\"}",
+        "result": "{\"result\": \"NO_BUDGET\", \"budgetId\": null, \"operationId\": \"4232d97d-dac1-4ac9-a5f3-82d3ce5186e8\", \"budgetVersion\": null, \"serviceOrderId\": \"2198a1b9-6fd8-4201-b857-7919a5e5b0eb\"}",
+        "late_result": null,
+        "attempts": 2
+      }
+    ],
+    "inventory": [],
+    "movements": [],
+    "balances": [
+      5,
+      5
+    ]
+  },
+  {
+    "scenario": "Timeout apos baixa, resposta perdida da reversao e retry",
+    "saga": "COMPENSATED",
+    "operations": [
+      {
+        "operation_id": "3584a690-5d98-42ec-81e3-915b2978e3ef",
+        "original_operation_id": null,
+        "intent": "START_ITEM",
+        "state": "SKIPPED",
+        "request": "{\"items\": [{\"quantity\": 1, \"inventoryItemId\": \"80000000-0000-4000-8000-000000000001\"}], \"operationId\": \"3584a690-5d98-42ec-81e3-915b2978e3ef\", \"serviceOrderId\": \"42ceb54d-9807-4f38-bb40-b82a666d52a3\", \"responsibleUserId\": \"00000007-0000-4000-8000-000000000001\", \"serviceOrderItemId\": \"4c2414c8-26b0-4006-baab-976bc33badfd\"}",
+        "result": null,
+        "late_result": null,
+        "attempts": 1
+      },
+      {
+        "operation_id": "77c36d25-7913-46cb-acaa-d35f1b29c5c1",
+        "original_operation_id": "3584a690-5d98-42ec-81e3-915b2978e3ef",
+        "intent": "RESOLVE_STOCK",
+        "state": "SUCCEEDED",
+        "request": "{\"reason\": \"VERIFIED_RETURN\", \"evidence\": {\"reference\": \"inspection-fixture\", \"verifiedAt\": \"2026-11-08T20:49:12.102549300Z\", \"verifiedBy\": \"00000007-0000-4000-8000-000000000001\"}, \"compensationId\": \"77c36d25-7913-46cb-acaa-d35f1b29c5c1\", \"unusedConfirmed\": true}",
+        "result": "{\"code\": null, \"result\": \"REVERSED\", \"movements\": [\"98cd5872-3046-4088-b1a2-eaee80d3e55b\"], \"operationId\": \"3584a690-5d98-42ec-81e3-915b2978e3ef\", \"compensationId\": \"77c36d25-7913-46cb-acaa-d35f1b29c5c1\"}",
+        "late_result": null,
+        "attempts": 2
+      },
+      {
+        "operation_id": "ce4d1f81-6c4a-4dc5-a9b0-70be4376ad52",
+        "original_operation_id": null,
+        "intent": "CANCEL_BUDGET",
+        "state": "SUCCEEDED",
+        "request": "{\"reason\": \"SERVICE_ORDER_CANCELLED\", \"operationId\": \"ce4d1f81-6c4a-4dc5-a9b0-70be4376ad52\", \"budgetVersion\": 1}",
+        "result": "{\"result\": \"CANCELLED\", \"budgetId\": \"9641d5b6-b6da-4d5e-8506-6e9469df167d\", \"operationId\": \"ce4d1f81-6c4a-4dc5-a9b0-70be4376ad52\", \"budgetVersion\": 1, \"serviceOrderId\": null}",
+        "late_result": null,
+        "attempts": 1
+      }
+    ],
+    "inventory": [
+      {
+        "id": "3584a690-5d98-42ec-81e3-915b2978e3ef",
+        "result": "{\"result\": \"REVERSED\", \"movements\": [\"98cd5872-3046-4088-b1a2-eaee80d3e55b\"], \"operationId\": \"3584a690-5d98-42ec-81e3-915b2978e3ef\", \"compensationId\": \"77c36d25-7913-46cb-acaa-d35f1b29c5c1\"}"
+      }
+    ],
+    "movements": [
+      {
+        "id": "e1898b6a-2bda-4152-a5ce-0cd80e4cd03b",
+        "operation_id": "3584a690-5d98-42ec-81e3-915b2978e3ef",
+        "quantity": -1,
+        "original_movement": null
+      },
+      {
+        "id": "98cd5872-3046-4088-b1a2-eaee80d3e55b",
+        "operation_id": "3584a690-5d98-42ec-81e3-915b2978e3ef",
+        "quantity": 1,
+        "original_movement": "e1898b6a-2bda-4152-a5ce-0cd80e4cd03b"
+      }
+    ],
+    "balances": [
+      5,
+      4,
+      5,
+      5
+    ]
+  },
+  {
+    "scenario": "Retomada entre C3/CT-09 e resposta Billing perdida",
+    "saga": "COMPENSATED",
+    "operations": [
+      {
+        "operation_id": "0e7f4032-8ce8-40fa-8001-94ad03096999",
+        "original_operation_id": null,
+        "intent": "START_ITEM",
+        "state": "SKIPPED",
+        "request": "{\"items\": [{\"quantity\": 1, \"inventoryItemId\": \"80000000-0000-4000-8000-000000000001\"}], \"operationId\": \"0e7f4032-8ce8-40fa-8001-94ad03096999\", \"serviceOrderId\": \"db5ad717-9451-40f6-b9a5-7393b35e33f4\", \"responsibleUserId\": \"00000007-0000-4000-8000-000000000001\", \"serviceOrderItemId\": \"2cc9793e-102d-4325-b4e7-049f8fd2bf6d\"}",
+        "result": null,
+        "late_result": null,
+        "attempts": 0
+      },
+      {
+        "operation_id": "954b27b4-16af-4312-81a4-8ef8be9b6ecb",
+        "original_operation_id": "0e7f4032-8ce8-40fa-8001-94ad03096999",
+        "intent": "RESOLVE_STOCK",
+        "state": "SUCCEEDED",
+        "request": "{\"reason\": \"CANCELLED_BEFORE_USE\", \"evidence\": {\"reference\": \"inspection-fixture\", \"verifiedAt\": \"2026-11-08T20:49:12.797128600Z\", \"verifiedBy\": \"00000007-0000-4000-8000-000000000001\"}, \"compensationId\": \"954b27b4-16af-4312-81a4-8ef8be9b6ecb\", \"unusedConfirmed\": true}",
+        "result": "{\"code\": null, \"result\": \"CLOSED\", \"movements\": [], \"operationId\": \"0e7f4032-8ce8-40fa-8001-94ad03096999\", \"compensationId\": \"954b27b4-16af-4312-81a4-8ef8be9b6ecb\"}",
+        "late_result": null,
+        "attempts": 1
+      },
+      {
+        "operation_id": "f19ec73b-0957-489a-bc0d-a044cdb2a6dc",
+        "original_operation_id": null,
+        "intent": "CANCEL_BUDGET",
+        "state": "SUCCEEDED",
+        "request": "{\"reason\": \"SERVICE_ORDER_CANCELLED\", \"operationId\": \"f19ec73b-0957-489a-bc0d-a044cdb2a6dc\", \"budgetVersion\": 1}",
+        "result": "{\"result\": \"CANCELLED\", \"budgetId\": \"2c1ab640-c0b1-42d2-be9b-30f379b91f2b\", \"operationId\": \"f19ec73b-0957-489a-bc0d-a044cdb2a6dc\", \"budgetVersion\": 1, \"serviceOrderId\": null}",
+        "late_result": null,
+        "attempts": 2
+      }
+    ],
+    "inventory": [
+      {
+        "id": "0e7f4032-8ce8-40fa-8001-94ad03096999",
+        "result": "{\"result\": \"CLOSED\", \"movements\": [], \"operationId\": \"0e7f4032-8ce8-40fa-8001-94ad03096999\", \"compensationId\": \"954b27b4-16af-4312-81a4-8ef8be9b6ecb\"}"
+      }
+    ],
+    "movements": [],
+    "balances": [
+      5,
+      5
+    ]
+  },
+  {
+    "scenario": "CLOSED antes de CT-05",
+    "saga": "COMPENSATED",
+    "operations": [
+      {
+        "operation_id": "d1759df7-ab66-4261-ae99-1a1b79c6b5f3",
+        "original_operation_id": null,
+        "intent": "START_ITEM",
+        "state": "SKIPPED",
+        "request": "{\"items\": [{\"quantity\": 1, \"inventoryItemId\": \"80000000-0000-4000-8000-000000000001\"}], \"operationId\": \"d1759df7-ab66-4261-ae99-1a1b79c6b5f3\", \"serviceOrderId\": \"6e3d9737-fadd-44b2-9e60-25fec4976580\", \"responsibleUserId\": \"00000007-0000-4000-8000-000000000001\", \"serviceOrderItemId\": \"bafe683f-d731-408d-a111-bfad69874fc6\"}",
+        "result": null,
+        "late_result": null,
+        "attempts": 0
+      },
+      {
+        "operation_id": "94a1ca69-f362-4e21-89df-4deaf686683f",
+        "original_operation_id": "d1759df7-ab66-4261-ae99-1a1b79c6b5f3",
+        "intent": "RESOLVE_STOCK",
+        "state": "SUCCEEDED",
+        "request": "{\"reason\": \"CANCELLED_BEFORE_USE\", \"evidence\": {\"reference\": \"inspection-fixture\", \"verifiedAt\": \"2026-11-08T20:49:22.618277800Z\", \"verifiedBy\": \"00000007-0000-4000-8000-000000000001\"}, \"compensationId\": \"94a1ca69-f362-4e21-89df-4deaf686683f\", \"unusedConfirmed\": true}",
+        "result": "{\"code\": null, \"result\": \"CLOSED\", \"movements\": [], \"operationId\": \"d1759df7-ab66-4261-ae99-1a1b79c6b5f3\", \"compensationId\": \"94a1ca69-f362-4e21-89df-4deaf686683f\"}",
+        "late_result": null,
+        "attempts": 1
+      },
+      {
+        "operation_id": "de4b18d8-792b-4893-8f09-473a9f096612",
+        "original_operation_id": null,
+        "intent": "CANCEL_BUDGET",
+        "state": "SUCCEEDED",
+        "request": "{\"reason\": \"SERVICE_ORDER_CANCELLED\", \"operationId\": \"de4b18d8-792b-4893-8f09-473a9f096612\", \"budgetVersion\": 1}",
+        "result": "{\"result\": \"CANCELLED\", \"budgetId\": \"31311673-5a4a-4fcc-bed6-61691f7d679b\", \"operationId\": \"de4b18d8-792b-4893-8f09-473a9f096612\", \"budgetVersion\": 1, \"serviceOrderId\": null}",
+        "late_result": null,
+        "attempts": 1
+      }
+    ],
+    "inventory": [
+      {
+        "id": "d1759df7-ab66-4261-ae99-1a1b79c6b5f3",
+        "result": "{\"result\": \"CLOSED\", \"movements\": [], \"operationId\": \"d1759df7-ab66-4261-ae99-1a1b79c6b5f3\", \"compensationId\": \"94a1ca69-f362-4e21-89df-4deaf686683f\"}"
+      }
+    ],
+    "movements": [],
+    "balances": [
+      5,
+      5,
+      5
+    ]
+  },
+  {
+    "scenario": "Inicio confirmado fora da janela",
+    "saga": "MANUAL_INTERVENTION",
+    "operations": [
+      {
+        "operation_id": "afcb2a68-5936-404d-9cde-93bb10248410",
+        "original_operation_id": null,
+        "intent": "START_ITEM",
+        "state": "CONFIRMED",
+        "request": "{\"items\": [{\"quantity\": 1, \"inventoryItemId\": \"80000000-0000-4000-8000-000000000001\"}], \"operationId\": \"afcb2a68-5936-404d-9cde-93bb10248410\", \"serviceOrderId\": \"ea9063de-983e-4cb9-b42b-b265bedbaa03\", \"responsibleUserId\": \"00000007-0000-4000-8000-000000000001\", \"serviceOrderItemId\": \"a21e768b-111f-4158-ad53-29cfac0985c7\"}",
+        "result": "{\"code\": null, \"result\": \"CONSUMED\", \"movements\": [\"a97ff127-53ac-4ebf-9a26-d28ea156170e\"], \"operationId\": \"afcb2a68-5936-404d-9cde-93bb10248410\"}",
+        "late_result": null,
+        "attempts": 1
+      }
+    ],
+    "inventory": [
+      {
+        "id": "afcb2a68-5936-404d-9cde-93bb10248410",
+        "result": "{\"result\": \"CONSUMED\", \"movements\": [\"a97ff127-53ac-4ebf-9a26-d28ea156170e\"], \"operationId\": \"afcb2a68-5936-404d-9cde-93bb10248410\"}"
+      }
+    ],
+    "movements": [
+      {
+        "id": "a97ff127-53ac-4ebf-9a26-d28ea156170e",
+        "operation_id": "afcb2a68-5936-404d-9cde-93bb10248410",
+        "quantity": -1,
+        "original_movement": null
+      }
+    ],
+    "balances": [
+      5,
+      4,
+      4
+    ]
+  },
+  {
+    "scenario": "Devolucao fisica nao conferida",
+    "saga": "MANUAL_INTERVENTION",
+    "operations": [],
+    "inventory": [],
+    "movements": [],
+    "balances": [
+      5,
+      5
+    ]
+  },
+  {
+    "scenario": "CT-05 antes de CT-08B e resposta tardia",
+    "saga": "COMPENSATED",
+    "operations": [
+      {
+        "operation_id": "d0355d72-b98f-461c-badb-b8e15ae6ba36",
+        "original_operation_id": null,
+        "intent": "START_ITEM",
+        "state": "SKIPPED",
+        "request": "{\"items\": [{\"quantity\": 1, \"inventoryItemId\": \"80000000-0000-4000-8000-000000000001\"}], \"operationId\": \"d0355d72-b98f-461c-badb-b8e15ae6ba36\", \"serviceOrderId\": \"453f8107-603c-4e2e-ac68-a9bd5e92641e\", \"responsibleUserId\": \"00000007-0000-4000-8000-000000000001\", \"serviceOrderItemId\": \"22fca3e6-ec6c-441a-b940-5e12946e1fb1\"}",
+        "result": null,
+        "late_result": "{\"code\": null, \"result\": \"CONSUMED\", \"movements\": [\"c4912ced-638d-4119-80d9-3909d168beb8\"], \"operationId\": \"d0355d72-b98f-461c-badb-b8e15ae6ba36\"}",
+        "attempts": 1
+      },
+      {
+        "operation_id": "638f206a-f803-4d48-aaa8-d9399de283af",
+        "original_operation_id": "d0355d72-b98f-461c-badb-b8e15ae6ba36",
+        "intent": "RESOLVE_STOCK",
+        "state": "SUCCEEDED",
+        "request": "{\"reason\": \"CANCELLED_BEFORE_USE\", \"evidence\": {\"reference\": \"inspection-fixture\", \"verifiedAt\": \"2026-11-08T20:49:24.189913Z\", \"verifiedBy\": \"00000007-0000-4000-8000-000000000001\"}, \"compensationId\": \"638f206a-f803-4d48-aaa8-d9399de283af\", \"unusedConfirmed\": true}",
+        "result": "{\"code\": null, \"result\": \"REVERSED\", \"movements\": [\"7c3dd4ae-f7f8-49f2-8027-a459e6f534cf\"], \"operationId\": \"d0355d72-b98f-461c-badb-b8e15ae6ba36\", \"compensationId\": \"638f206a-f803-4d48-aaa8-d9399de283af\"}",
+        "late_result": null,
+        "attempts": 1
+      },
+      {
+        "operation_id": "2f03fbc2-1eaf-414a-8e24-eebb89667932",
+        "original_operation_id": null,
+        "intent": "CANCEL_BUDGET",
+        "state": "SUCCEEDED",
+        "request": "{\"reason\": \"SERVICE_ORDER_CANCELLED\", \"operationId\": \"2f03fbc2-1eaf-414a-8e24-eebb89667932\", \"budgetVersion\": 1}",
+        "result": "{\"result\": \"CANCELLED\", \"budgetId\": \"18a9cbf3-3223-4ce9-8433-74758311b1e6\", \"operationId\": \"2f03fbc2-1eaf-414a-8e24-eebb89667932\", \"budgetVersion\": 1, \"serviceOrderId\": null}",
+        "late_result": null,
+        "attempts": 1
+      }
+    ],
+    "inventory": [
+      {
+        "id": "d0355d72-b98f-461c-badb-b8e15ae6ba36",
+        "result": "{\"result\": \"REVERSED\", \"movements\": [\"7c3dd4ae-f7f8-49f2-8027-a459e6f534cf\"], \"operationId\": \"d0355d72-b98f-461c-badb-b8e15ae6ba36\", \"compensationId\": \"638f206a-f803-4d48-aaa8-d9399de283af\"}"
+      }
+    ],
+    "movements": [
+      {
+        "id": "c4912ced-638d-4119-80d9-3909d168beb8",
+        "operation_id": "d0355d72-b98f-461c-badb-b8e15ae6ba36",
+        "quantity": -1,
+        "original_movement": null
+      },
+      {
+        "id": "7c3dd4ae-f7f8-49f2-8027-a459e6f534cf",
+        "operation_id": "d0355d72-b98f-461c-badb-b8e15ae6ba36",
+        "quantity": 1,
+        "original_movement": "c4912ced-638d-4119-80d9-3909d168beb8"
+      }
+    ],
+    "balances": [
+      5,
+      4,
+      5
+    ]
+  }
+]

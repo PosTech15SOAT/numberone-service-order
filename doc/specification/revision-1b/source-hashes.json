@@ -1,0 +1,20 @@
+{
+  "baseCommit": "c73dfb2b74d271b6808c98170a1bb8a9b382aac4",
+  "sources": [
+    {
+      "source": "doc/fase-4/contratos-saga-arquitetura-v2.md",
+      "snapshot": "doc/specification/revision-1b/contratos-saga-arquitetura-v2.md",
+      "sha256": "386a49f4e901b06066d8ddfa92ebab6f7b4659bfb314617cb89d9d9b6c4e2876"
+    },
+    {
+      "source": "doc/fase-4/implementacao-os/fase-1-repositorio-contratos.md",
+      "snapshot": "doc/specification/revision-1b/fase-1-repositorio-contratos.md",
+      "sha256": "4c9b47de92b5fc43c2995d93fa797b9233322d64ace43ac6300ec1cae4b08b94"
+    },
+    {
+      "source": "doc/fase-4/implementacao-os/contexto-organizacao.md",
+      "snapshot": "doc/specification/revision-1b/contexto-organizacao.md",
+      "sha256": "2e177f1fa6cad974ccedfaaf06cc1405949e44bbcbe3b558b622725bd6c3f35e"
+    }
+  ]
+}

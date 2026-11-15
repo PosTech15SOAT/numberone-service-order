@@ -1,0 +1,241 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.numberone.invalid/saga/v1/common.schema.json",
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "utc": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "quantity": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "money": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{2}$",
+      "maxLength": 20
+    },
+    "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$",
+      "description": "Código ISO 4217. Schema verifica sintaxe; consumidor valida moeda suportada. BRL nos cenários."
+    },
+    "reason": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]{1,63}$"
+    },
+    "detail": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Texto sanitizado, sem dados pessoais, credenciais ou mensagens internas de exceção."
+    },
+    "reference": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Referência opaca, sem token, dados de cartão ou pessoais."
+    },
+    "recipient": {
+      "type": "object",
+      "properties": {
+        "channel": {
+          "const": "EMAIL"
+        },
+        "address": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 254
+        }
+      },
+      "required": [
+        "channel",
+        "address"
+      ],
+      "additionalProperties": true
+    },
+    "proposedMaterial": {
+      "type": "object",
+      "properties": {
+        "materialId": {
+          "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/uuid"
+        },
+        "quantity": {
+          "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/quantity"
+        },
+        "referenceUnitPrice": {
+          "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/money"
+        }
+      },
+      "required": [
+        "materialId",
+        "quantity",
+        "referenceUnitPrice"
+      ],
+      "additionalProperties": true
+    },
+    "approvedMaterial": {
+      "type": "object",
+      "properties": {
+        "materialId": {
+          "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/uuid"
+        },
+        "quantity": {
+          "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/quantity"
+        },
+        "approvedUnitPrice": {
+          "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/money"
+        }
+      },
+      "required": [
+        "materialId",
+        "quantity",
+        "approvedUnitPrice"
+      ],
+      "additionalProperties": true
+    },
+    "allocatedMaterial": {
+      "type": "object",
+      "properties": {
+        "materialId": {
+          "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/uuid"
+        },
+        "quantity": {
+          "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/quantity"
+        }
+      },
+      "required": [
+        "materialId",
+        "quantity"
+      ],
+      "additionalProperties": true
+    },
+    "movement": {
+      "type": "object",
+      "properties": {
+        "movementId": {
+          "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/uuid"
+        },
+        "materialId": {
+          "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/uuid"
+        },
+        "quantity": {
+          "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/quantity"
+        }
+      },
+      "required": [
+        "movementId",
+        "materialId",
+        "quantity"
+      ],
+      "additionalProperties": true
+    },
+    "proposedItem": {
+      "type": "object",
+      "properties": {
+        "serviceOrderItemId": {
+          "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/uuid"
+        },
+        "automotiveServiceId": {
+          "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/uuid"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "quantity": {
+          "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/quantity"
+        },
+        "laborUnitPrice": {
+          "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/money"
+        },
+        "materials": {
+          "type": "array",
+          "items": {
+            "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/proposedMaterial"
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "serviceOrderItemId",
+        "automotiveServiceId",
+        "description",
+        "quantity",
+        "laborUnitPrice",
+        "materials"
+      ],
+      "additionalProperties": true
+    },
+    "approvedItem": {
+      "type": "object",
+      "properties": {
+        "serviceOrderItemId": {
+          "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/uuid"
+        },
+        "automotiveServiceId": {
+          "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/uuid"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "quantity": {
+          "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/quantity"
+        },
+        "laborUnitPrice": {
+          "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/money"
+        },
+        "materials": {
+          "type": "array",
+          "items": {
+            "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/approvedMaterial"
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "serviceOrderItemId",
+        "automotiveServiceId",
+        "description",
+        "quantity",
+        "laborUnitPrice",
+        "materials"
+      ],
+      "additionalProperties": true
+    },
+    "allocation": {
+      "type": "object",
+      "properties": {
+        "serviceOrderItemId": {
+          "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/uuid"
+        },
+        "materials": {
+          "type": "array",
+          "items": {
+            "$ref": "https://contracts.numberone.invalid/saga/v1/common.schema.json#/$defs/allocatedMaterial"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "serviceOrderItemId",
+        "materials"
+      ],
+      "additionalProperties": true
+    }
+  }
+}

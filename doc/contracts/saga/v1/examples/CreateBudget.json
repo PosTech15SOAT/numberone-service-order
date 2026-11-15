@@ -1,0 +1,38 @@
+{
+  "messageId": "00000100-0000-4000-8000-000000000001",
+  "sagaId": "00000002-0000-4000-8000-000000000001",
+  "serviceOrderId": "00000003-0000-4000-8000-000000000001",
+  "branchId": "00000004-0000-4000-8000-000000000001",
+  "attemptId": "00000005-0000-4000-8000-000000000001",
+  "operationId": "00000061-0000-4000-8000-000000000001",
+  "type": "CreateBudget",
+  "schemaVersion": 1,
+  "causationId": null,
+  "occurredAt": "2026-10-31T15:00:00Z",
+  "producer": "os-service",
+  "correlationId": "demo-os-phase1",
+  "payload": {
+    "budgetRevision": 1,
+    "vehicleId": "00000013-0000-4000-8000-000000000001",
+    "serviceItems": [
+      {
+        "serviceOrderItemId": "00000007-0000-4000-8000-000000000001",
+        "automotiveServiceId": "00000009-0000-4000-8000-000000000001",
+        "description": "Servico demonstrativo",
+        "quantity": 1,
+        "laborUnitPrice": "150.00",
+        "materials": [
+          {
+            "materialId": "00000008-0000-4000-8000-000000000001",
+            "quantity": 1,
+            "referenceUnitPrice": "200.00"
+          }
+        ]
+      }
+    ],
+    "recipient": {
+      "channel": "EMAIL",
+      "address": "cliente@example.invalid"
+    }
+  }
+}

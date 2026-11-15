@@ -1,0 +1,50 @@
+{
+  "phase": 4,
+  "date": "2026-11-08",
+  "timezone": "America/Sao_Paulo",
+  "scope": "OS main Saga flow; complete compensation excluded",
+  "baseHead": "13817e5466077bc2c6b0b9a0c61254ec6727e108",
+  "branch": "feature/fase-2-dominio-persistencia",
+  "preexistingIndexDiffHash": "bded155ce36c25aadb1d9b3cd099b05aee0918f9",
+  "finalIndexDiffHash": "bded155ce36c25aadb1d9b3cd099b05aee0918f9",
+  "contractPackage": "2.0.0-os-baseline.1",
+  "externalContractApproved": false,
+  "validation": {
+    "command": ".\\mvnw.cmd -B -o clean verify",
+    "result": "BUILD SUCCESS",
+    "unitTests": 109,
+    "integrationTests": 60,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "coveredLines": 1772,
+    "totalLines": 1876,
+    "lineCoveragePercent": 94.46,
+    "coverageGatePercent": 80,
+    "offlineContractChecks": 21,
+    "capturedHttpPayloadsValidated": 41,
+    "httpSchemasValidated": 11
+  },
+  "participants": {
+    "serviceOrder": "real Spring Boot HTTP and PostgreSQL persistence",
+    "database": "PostgreSQL 17.9, postgres:17-alpine, ephemeral Testcontainers",
+    "billing": "loopback HTTP simulator with active contract fixtures; real inbox handler",
+    "inventory": "loopback HTTP simulator with active contract fixtures and idempotent simulated debit",
+    "sqsTransport": "AWS SDK mock in messaging regression tests; no live queue",
+    "javaRuntime": "26.0.1",
+    "javaRelease": 25
+  },
+  "reports": [
+    "phase4-verify.log",
+    "phase4-contracts.log",
+    "phase4-trace-validation.log",
+    "target/failsafe-reports/br.com.fiap.numberone.serviceorder.saga.SagaMainFlowIT.txt",
+    "target/phase4-contract-trace.json",
+    "target/site/jacoco/index.html"
+  ],
+  "remainingPhases": {
+    "5": "Full compensation and automatic recovery workers",
+    "6": "DynamoDB maintenance history and local outbox",
+    "7": "Live participants, platform identity/network, AWS SQS and deployment"
+  }
+}
