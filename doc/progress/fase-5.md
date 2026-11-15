@@ -56,8 +56,8 @@ provedor continuam no Billing.
 
 ## API
 
-As rotas exigem ADMIN, identidade autenticada, correlação e filial, como as demais
-rotas administrativas. Contrato local em [os-phase5.openapi.yaml](../contracts/os-phase5.openapi.yaml).
+As rotas exigem correlação e preservam o filtro de filial. Cancelamento e retomada
+exigem `X-Authenticated-Subject` UUID como autoria declarada, sem autenticação HTTP. Contrato local em [os-phase5.openapi.yaml](../contracts/os-phase5.openapi.yaml).
 
 - `PATCH /api/admin/ordens-servico/{id}/cancelar`: corpo de conferência obrigatório;
   202 em COMPENSATING, 409 com revisão durável, 200 quando a repetição exata já

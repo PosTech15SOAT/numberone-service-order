@@ -50,9 +50,9 @@ de operação é reaproveitado na recuperação de uma resposta perdida.
 ## Executar localmente no PowerShell
 
 Docker Desktop com engine Linux; nÃ£o requer JDK no host. O Compose usa banco
-`service_order_db`, volume prÃ³prio, credencial demonstrativa e identidade ADMIN
-local. SÃ³ publica HTTP no loopback; nÃ£o utilizar esse perfil fora do desenvolvimento.
-NÃ£o existe login nem emissor JWT. O PostgreSQL nÃ£o publica porta no host.
+`service_order_db`, volume próprio e credencial demonstrativa. O serviço HTTP não
+exige autenticação em nenhum perfil. O Compose publica HTTP apenas no loopback;
+o PostgreSQL não publica porta no host.
 
 ```powershell
 $env:MATERIAL_REFERENCE_PROVIDER = 'fixture'
@@ -90,9 +90,9 @@ ao daemon conforme a [documentaÃ§Ã£o do Testcontainers](https://java.testcon
 
 | EvidÃªncia | ExecuÃ§Ã£o / relatÃ³rio | O que demonstra |
 |---|---|---|
-| Regra | Surefire `*Test`, `target/surefire-reports` | DomÃ­nio, validaÃ§Ãµes, identidade, posse e correlaÃ§Ã£o |
+| Regra | Surefire `*Test`, `target/surefire-reports` | DomÃ­nio, validaÃ§Ãµes, autoria e correlação |
 | PersistÃªncia | `ServiceOrderPersistenceIT`, Failsafe | Flyway, FKs, constraints, locks e versÃµes em PostgreSQL 17 real |
-| Transporte | `*TransportIT`, Failsafe | HTTP/Tomcat reais em porta aleatÃ³ria, seguranÃ§a e CRUD sobre PostgreSQL |
+| Transporte | `*TransportIT`, Failsafe | HTTP/Tomcat reais em porta aleatÃ³ria, autoria, correlação e CRUD sobre PostgreSQL |
 | Contrato | `scripts/validate_contracts.py`, `target/contract-validation.json` | Schemas/vetores; nÃ£o prova trÃ¡fego entre serviÃ§os |
 | Cobertura | `target/site/jacoco/index.html` | UnitÃ¡rios + integraÃ§Ã£o, gate 80% de linhas; sÃ³ bootstrap excluÃ­do |
 
@@ -112,19 +112,58 @@ ou reinÃ­cio. Ver [entrega e evidÃªncias](doc/progress/fase-5.md),
 
 ## SeguranÃ§a e limites
 
-`/api/*` exige `X-Correlation-Id` vÃ¡lido. `/api/admin/**` exige ADMIN; acompanhamento
-exige ADMIN ou `SERVICE_ORDER_TRACK_OWN` com posse do cliente e filial configurada.
-As rotas e mudanÃ§as de DTO estÃ£o no mapa de extraÃ§Ã£o. Valores estimados sÃ£o
-identificados como `ESTIMATIVA`; aprovaÃ§Ã£o/pagamento sÃ³ sÃ£o projeÃ§Ãµes confirmadas.
+O MVP não autentica nem autoriza HTTP. Rotas administrativas, internas,
+acompanhamento e histórico não exigem Authorization, roles, permissões ou posse.
+`X-Authenticated-Subject` é somente UUID de autoria declarada, obrigatório para
+iniciar item, cancelar OS/item e retomar compensação. Não existe identidade padrão.
 
-Fora do perfil local, fornecer `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` e
-`OS_BRANCH_ID` por configuraÃ§Ã£o segura. Identidade Gateway vem desligada para
-confianÃ§a de headers: `GATEWAY_HEADERS_TRUSTED=false`. Marcelo precisa validar
-sobrescrita dos headers no Gateway e bloqueio de acesso direto antes de habilitar.
-NÃ£o se pode confiar em headers recebidos diretamente de clientes.
+`/api/**` exige `X-Correlation-Id` textual válido; `/internal/**` exige UUID.
+Correlação, `Idempotency-Key`, autoria persistida e filtros de filial permanecem.
+Clientes de Billing e Inventory usam URLs configuráveis, sem Bearer ou tokens.
+Forneça `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` e `OS_BRANCH_ID` pela configuração.
+
+Os serviços comunicam-se via ClusterIP. Proteção externa está fora do escopo
+atual; identidade por serviço, NetworkPolicies e TLS/mTLS são evoluções futuras.
+Veja [a decisão e o débito técnico](doc/adr/0004-mvp-sem-autenticacao-http.md).
 
 Logs JSON usam `correlation_id`, sem payloads, identidade ou erros SQL. Datadog
 1.64.2 fixado na imagem; envio ao Datadog nÃ£o demonstrado. CI executa **Required
 validation**; manifestos sÃ£o apenas referÃªncias para revisÃ£o. NÃ£o hÃ¡ workflow de
 deploy. Ver [CONTRIBUTING](CONTRIBUTING.md), [manifestos](k8s/README.md) e
 [governanÃ§a pendente](doc/integration/governance-request.md).
+
+### Histórico local com Docker Compose
+
+O modo padrão `compose.yaml` permanece independente. Para a jornada explícita
+OS + Billing real e Inventory Mockoon, execute:
+
+```bash
+OS_HTTP_PORT=19080 docker compose -p numberone-r2-history -f compose.yaml -f compose.history.yaml up -d --no-build
+```
+
+O overlay usa as imagens locais verificadas `numberone-service-order:r2-20261114`
+e `numberone-billing-service:r2-20261114-v2` (construí-las antes de iniciar),
+bancos/volumes próprios e LocalStack com SQS/DynamoDB. Não importa credenciais AWS
+ou o `.env` completo do Billing. O bootstrap de SQS reutiliza a infraestrutura
+Kind no workspace; o de DynamoDB é idempotente em `docker/localstack`.
+
+`HISTORY_BILLING_PORT` altera a porta publicada e a URL pública de decisão do
+Billing. `BUDGET_APPROVAL_BASE_URL` permite usar um domínio HTTPS acessível ao
+cliente. A URL pública não usa nomes internos de containers. Notificações SMTP
+e pagamentos ficam desligados nesse overlay; disponibilizar uma chave AES
+própria e credenciais controladas antes de testar envios nesse ambiente.
+
+Os perfis local/kind exigem endpoint DynamoDB local explícito e usam credenciais
+fictícias fixas; não há fallback para AWS. A tabela possui partition key
+`vehicleId` e sort key `historyKey`, ambas String. O pool local de scheduling tem
+3 threads para separar o long poll SQS dos workers de histórico e recuperação.
+O LocalStack desta composição é efêmero: recriar seu container perde as projeções;
+linhas PostgreSQL já PROJECTED não são reabertas automaticamente. Preservar o
+container/dados ou planejar reconstrução controlada antes de removê-lo.
+
+## Preparação integrada de deploy
+
+A documentação transversal está no clone irmão
+[Billing: prontidão EKS](../numberone-billing-service/docs/deployment/eks-readiness/README.md).
+A orquestração local compartilhada passa a ficar em
+[Billing/dev/kind](../numberone-billing-service/dev/kind/README.md), reutilizando este overlay Kind.

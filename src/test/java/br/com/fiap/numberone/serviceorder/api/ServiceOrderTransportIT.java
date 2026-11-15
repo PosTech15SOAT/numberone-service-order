@@ -40,14 +40,14 @@ class ServiceOrderTransportIT extends HttpPostgresSupport {
         expect(409, call("PATCH", "/api/admin/ordens-servico/" + f.order() + "/entregar", null));
     }
 
-    @Test void ownershipAndPermissionAreRequiredForTracking() throws Exception {
+    @Test void trackingAndAdministrationDoNotRequireIdentityOrOwnership() throws Exception {
         var f = diagnosisFixture(); String route = "/api/public/ordens-servico/" + f.order() + "/acompanhamento";
         expect(200, call("GET", route, null, customer(f.customer())));
-        expect(403, call("GET", route, null, customer(UUID.randomUUID())));
+        expect(200, call("GET", route, null, customer(UUID.randomUUID())));
         var withoutPermission = new HashMap<>(customer(f.customer())); withoutPermission.put("X-Authenticated-Permissions", "");
-        expect(403, call("GET", route, null, withoutPermission));
-        expect(401, call("GET", route, null, Map.of()));
-        expect(403, call("GET", "/api/admin/clientes", null, customer(f.customer())));
+        expect(200, call("GET", route, null, withoutPermission));
+        expect(200, call("GET", route, null, Map.of()));
+        expect(200, call("GET", "/api/admin/clientes", null, customer(f.customer())));
         expect(200, call("GET", route, null));
     }
 
@@ -78,13 +78,40 @@ class ServiceOrderTransportIT extends HttpPostgresSupport {
         assertThat(refused.get("message").asString()).isEqualTo("BUDGET_NOT_APPROVED");
     }
 
-    @Test void malformedInactiveAndPartialGatewayContextsAreRejectedWithoutEcho() throws Exception {
+    @Test void legacyIdentityHeadersDoNotAuthorizeOrBlockRequests() throws Exception {
         var inactive = new HashMap<>(admin()); inactive.put("X-Authenticated-Status", "INACTIVE");
-        expect(401, call("GET", "/api/admin/clientes", null, inactive));
+        expect(200, call("GET", "/api/admin/clientes", null, inactive));
         var invalid = new HashMap<>(admin()); invalid.put("X-Authenticated-Customer-Id", "invalid-sensitive-value");
-        var reply = expect(401, call("GET", "/api/admin/clientes", null, invalid));
+        var reply = expect(200, call("GET", "/api/admin/clientes", null, invalid));
         assertThat(reply.toString()).doesNotContain("invalid-sensitive-value", "fixture-admin");
-        expect(401, call("GET", "/api/admin/clientes", null, Map.of("X-Authenticated-Roles", "ADMIN")));
+        expect(200, call("GET", "/api/admin/clientes", null, Map.of()));
+        expect(200, call("GET", "/api/admin/clientes", null, Map.of("X-Authenticated-Roles", "ADMIN")));
+    }
+
+    @Test void authorIsRequiredAndMustBeCanonicalUuidBeforeAnySagaMutation() throws Exception {
+        var f = diagnosisFixture();
+        var cancellation = Map.of("scope", "FULL", "reason", "Inspecao", "unusedConfirmed", true,
+                "physicallyRemoved", false, "returnConfirmed", false,
+                "verifiedAt", java.time.Instant.now().toString(), "evidenceReference", "fixture-inspection");
+        var paths = java.util.List.of(
+                "/api/admin/itens-ordem-servico/" + f.item() + "/iniciar",
+                "/api/admin/ordens-servico/" + f.order() + "/cancelar",
+                "/api/admin/itens-ordem-servico/" + f.item() + "/cancelar",
+                "/api/admin/ordens-servico/" + f.order() + "/compensacao/retomar");
+        for (String path : paths) {
+            boolean resume = path.endsWith("retomar");
+            Object body = resume ? Map.of("reason", "Revisao") : path.endsWith("cancelar") ? cancellation : null;
+            for (var headers : java.util.List.of(Map.<String, String>of(),
+                    Map.of("X-Authenticated-Subject", ""),
+                    Map.of("X-Authenticated-Subject", "invalid-sensitive-author"),
+                    Map.of("X-Authenticated-Subject", "1-1-1-1-1"))) {
+                var reply = expect(400, call(resume ? "POST" : "PATCH", path, body, headers));
+                assertThat(reply.toString()).doesNotContain("invalid-sensitive-author");
+            }
+        }
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM saga_operation", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT cancellation_in_progress FROM service_order_saga WHERE service_order_id=?",
+                Boolean.class, f.order())).isFalse();
     }
 
     @Test void serverAssignsBranchAndScopesAllOrderAndItemRoutes() throws Exception {

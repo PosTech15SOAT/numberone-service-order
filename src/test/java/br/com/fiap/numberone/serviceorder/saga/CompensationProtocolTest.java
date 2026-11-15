@@ -25,7 +25,7 @@ class CompensationProtocolTest {
         server=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
         server.createContext("/",e -> { try { byte[] bytes=body.getBytes(java.nio.charset.StandardCharsets.UTF_8);e.sendResponseHeaders(status,bytes.length);e.getResponseBody().write(bytes); } finally { e.close(); } });server.start();
         String base = "http://127.0.0.1:" + server.getAddress().getPort();
-        var http = new ParticipantHttpClient(json, base, "fixture");
+        var http = new ParticipantHttpClient(json, base);
         inventory = new HttpInventorySagaGateway(json, http);
         billing = new HttpBillingSagaGateway(json, http);
     }

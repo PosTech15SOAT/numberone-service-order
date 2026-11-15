@@ -2,13 +2,14 @@
 
 ## Solicitar e acompanhar
 
-Usar as rotas administrativas pela identidade/Gateway autorizados. Não enviar
-identidade do conferente no corpo: o servidor a obtém do funcionário autenticado.
+As rotas administrativas não exigem autenticação HTTP. Enviar o UUID do conferente
+em `X-Authenticated-Subject`, como autoria declarada, sem comprovação de identidade.
 
 ```http
 PATCH /api/admin/ordens-servico/{serviceOrderId}/cancelar
 Content-Type: application/json
 X-Correlation-Id: <UUID>
+X-Authenticated-Subject: <UUID do autor>
 
 {
   "scope": "FULL",
@@ -99,12 +100,13 @@ revisão; não envia mensagens nem abre chamados externos automaticamente.
   remover a operação nem trocar a chave.
 
 Após resolver externamente um conflito de cancelamento originalmente elegível,
-um ADMIN registra a decisão:
+o operador registra a decisão com seu UUID de autoria declarada:
 
 ```http
 POST /api/admin/ordens-servico/{serviceOrderId}/compensacao/retomar
 Content-Type: application/json
 X-Correlation-Id: <UUID>
+X-Authenticated-Subject: <UUID do autor>
 
 {"reason":"Conflito resolvido no participante; referencia do registro operacional"}
 ```

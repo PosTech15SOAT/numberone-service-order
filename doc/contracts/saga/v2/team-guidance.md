@@ -49,7 +49,7 @@ Fontes remotas consultadas por leitura da API GitHub: [Billing](https://github.c
 | DEC-12 · retirada cancelada | Manter OS `CANCELLED` e Saga `COMPENSATED`. Registrar retirada em campo próprio, após resolver efeitos. | Matheus |
 | DEC-13 · estorno/entrega | Estorno exige autorização e reconciliação no Billing. Coordenar manualmente o estorno da cobrança que quita a OS com a entrega. | Julio + Matheus |
 | DEC-14 · SQS | Uma fila Standard Billing → OS, com DLQ Standard, inbox e recuperação por estado. | Marcelo + Julio + Matheus |
-| DEC-15 · serviço-serviço | Bearer opaco distinto por par chamador/destino, rotas autorizadas e rede privada. Contexto público continua no Gateway. | Marcelo + donos |
+| DEC-15 · serviço-serviço | MVP sem autenticação/autorização HTTP; comunicação via ClusterIP e autoria declarada. Identidade por serviço, NetworkPolicies e TLS/mTLS são evoluções futuras. | Marcelo + donos |
 | DEC-16 · bancos | Um RDS existente. OS `numberone_os`, Billing `numberone_billing`, Inventory `inventory_db`, cada um com usuário exclusivo. | Marcelo + donos |
 | DEC-17 · histórico | DynamoDB `vehicle_maintenance_history`, com prefixo de ambiente, projetado pela OS via outbox local. | Marcelo + Matheus |
 | DEC-18 · login | Auth consulta cliente por POST interno na OS. Mantém seus usuários, RBAC e emissão atual de JWT. | Marcelo + Matheus |
@@ -219,9 +219,11 @@ Para retirada após cancelamento integral compensado, adicionar `POST /api/admin
 
 ### Identidade de serviço
 
-Usar um token opaco aleatório distinto por par, como OS → Billing, OS → Inventory, Billing → OS, Billing → Inventory e Auth → OS. Distribuir por Secrets Manager/Secret do workload. Enviar em `Authorization: Bearer`. O destino identifica o chamador pelo token e permite apenas suas rotas. Comparar em tempo constante, aceitar versão atual/anterior durante rotação e manter segredos fora do Git/logs. Em ambiente compartilhado, proteger por TLS e rede privada. Testes locais usam tokens fictícios configurados.
-
-Manter o Gateway sobrescrevendo os headers públicos de identidade e restringir acesso direto. A credencial interna permite o escopo de serviço, e o funcionário é auditado pelo contexto obtido na entrada. O MVP permanece em uma filial configurada por serviço. Se houver múltiplas filiais, evoluir os contratos de escopo antes de habilitar uso entre filiais.
+O MVP não exige nem envia tokens HTTP. `X-Authenticated-Subject` representa
+somente autoria declarada UUID. Não há verificação de roles, permissões ou posse
+na OS. Serviços comunicam-se via ClusterIP; proteção externa fica fora do escopo.
+Identidade por serviço, NetworkPolicies e TLS/mTLS são evoluções futuras.
+O filtro de filial continua sendo regra de domínio.
 
 ### Lookup de cliente para o auth
 
@@ -244,7 +246,7 @@ Marcelo troca `find_active_customer_by_cpf` pelo adaptador HTTP. Usuário e perm
 | Matheus | Publicar revisão 1B com composição obrigatória, EV-04 ativo, CT-10/11, lookup, API de início/cancelamento e retirada. Reconciliar com a adaptação local da fase 2. | Inbox/Saga, consumo/compensação, CT-07, histórico e evidências por fase. |
 | Julio | Implementar contexto comercial por OS, CT-10/11, orçamento versionado, snapshot e outbox dos cinco eventos. | CT-07/09, pagamento iniciado após OS concluída, reconciliação Mercado Pago e estorno integral autorizado. |
 | Anderson | Reaproveitar bootstrap e catálogo/movimentos. Implementar as tabelas de operação e CT-05/08/08B com atomicidade e fechamento. | Testar pedidos repetidos, falta de saldo, corrida entre baixa e fechamento e reversão única. |
-| Marcelo | Preparar bancos/usuários, tabela de histórico, fila/DLQ, tokens e variáveis de ambiente com outputs documentados. | Lookup auth, rotas, CI/CD, governança, alarmes e integração no ambiente. |
+| Marcelo | Preparar bancos/usuários, tabela de histórico, fila/DLQ e variáveis de ambiente com outputs documentados. | Lookup auth, rotas, CI/CD, governança, alarmes e integração no ambiente. |
 
 ## 10. Checklist de revisão antes da integração
 

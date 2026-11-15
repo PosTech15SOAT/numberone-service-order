@@ -1,4 +1,4 @@
-name: CI
+name: Integração contínua
 
 on:
   workflow_call:
@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 jobs:
@@ -24,10 +24,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - name: Obter código do repositório
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-java@v5
+      - name: Configurar Java e cache Maven
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '25'
@@ -46,7 +48,8 @@ jobs:
         run: |
           docker build --target verified --tag "$IMAGE_TAG" .
           bash scripts/smoke-image.sh "$IMAGE_TAG"
-      - uses: azure/setup-kubectl@v4
+      - name: Configurar kubectl
+        uses: azure/setup-kubectl@v4
         with:
           version: v1.36.2
       - name: Renderizar e validar os manifests

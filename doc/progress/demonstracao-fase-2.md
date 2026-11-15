@@ -26,8 +26,8 @@ Inicio=409; ConclusaoPrematura=409; EntregaPrematura=409; Inventory=FIXTURE
 
 Não gera pagamento, reserva nem consumo real. O script imprime somente resultados
 técnicos e usa endereço/documento sintéticos. Não utilizar cadastros pessoais reais
-na demonstração. O perfil local fornece identidade ADMIN fixa, sem JWT; os testes
-HTTP do Maven exercitam separadamente o contexto Gateway e a posse do cliente.
+na demonstração. O script gera um UUID sintético de autoria declarada; não há
+autenticação HTTP ou identidade padrão no serviço. Os testes preservam o filtro de filial.
 
 Para demonstrar persistência, reinicie o container da aplicação e repita:
 
@@ -57,9 +57,9 @@ Sequência sugerida de leitura:
 2. `src/main/resources/db/migration/V1__service_order_baseline.sql`: banco próprio, FKs locais, contadores e snapshots imutáveis.
 3. `serviceorder/domain/entities`: guardas de pagamento, início, consumo, conclusão/entrega e estimativa.
 4. `ServiceOrderService`/`JpaServiceOrderGateway`: escopo de filial, locks e versões.
-5. `SecurityConfiguration`/`AuthenticatedUserAuthenticationFilter`: permissões, posse e confiança de Gateway.
+5. `DeclaredAuthor`/`InternalCorrelationIdFilter`: autoria declarada e correlação sem autenticação.
 6. `ServiceOrderPersistenceIT`: lock em duas transações PostgreSQL, versão obsoleta, impossibilidade de mover composição aprovada.
-7. `ServiceOrderTransportIT`/`CatalogTransportIT`: fluxo HTTP/validações e autorização.
+7. `ServiceOrderTransportIT`/`CatalogTransportIT`: fluxo HTTP, validações e autoria.
 
 O caso positivo de concluir/entregar usa **seeds de confirmação em banco
 descartável**: demonstra apenas a guarda local, não entrega distribuída. Não há

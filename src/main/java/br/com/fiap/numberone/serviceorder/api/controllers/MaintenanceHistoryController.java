@@ -5,7 +5,6 @@ import br.com.fiap.numberone.serviceorder.domain.exceptions.OrderNotFoundExcepti
 import br.com.fiap.numberone.serviceorder.domain.valueobjects.MaintenanceSnapshot;
 import br.com.fiap.numberone.serviceorder.infrastructure.history.DynamoMaintenanceHistory;
 import br.com.fiap.numberone.shared.application.gateways.BranchScope;
-import br.com.fiap.numberone.shared.security.infrastructure.authorization.AuthenticatedCustomerAccess;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,14 +26,12 @@ public class MaintenanceHistoryController {
 
     private final JdbcTemplate jdbc;
     private final BranchScope branch;
-    private final AuthenticatedCustomerAccess access;
     private final ObjectProvider<DynamoMaintenanceHistory> history;
 
-    public MaintenanceHistoryController(JdbcTemplate jdbc, BranchScope branch, AuthenticatedCustomerAccess access,
+    public MaintenanceHistoryController(JdbcTemplate jdbc, BranchScope branch,
                                         ObjectProvider<DynamoMaintenanceHistory> history) {
         this.jdbc = jdbc;
         this.branch = branch;
-        this.access = access;
         this.history = history;
     }
 
@@ -44,12 +41,11 @@ public class MaintenanceHistoryController {
     public HistoryPage history(@PathVariable UUID vehicleId, @RequestParam(defaultValue = "20") int limit,
                                @RequestParam(required = false) String cursor) {
         UUID branchId = branch.id();
-        UUID customerId = jdbc.queryForList("""
-                SELECT v.id_cliente FROM veiculo v WHERE v.id=? AND EXISTS (
+        jdbc.queryForList("""
+                SELECT v.id FROM veiculo v WHERE v.id=? AND EXISTS (
                     SELECT 1 FROM ordem_servico o WHERE o.id_veiculo=v.id AND o.branch_id=?
                 )
                 """, UUID.class, vehicleId, branchId).stream().findFirst().orElseThrow(OrderNotFoundException::new);
-        access.requireCurrentUserOwnershipOrAdmin(customerId);
         if (limit < 1 || limit > 50) {
             throw new IllegalArgumentException("INVALID_HISTORY_LIMIT");
         }

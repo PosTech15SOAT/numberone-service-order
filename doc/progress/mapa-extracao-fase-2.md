@@ -1,5 +1,7 @@
 # Mapa de extração — fase 2
 
+> Mapa histórico: as linhas de autenticação/autorização foram substituídas pela [decisão do MVP](../adr/0004-mvp-sem-autenticacao-http.md); classes de segurança citadas abaixo foram removidas.
+
 Origem autoritativa: `PosTech15SOAT/numberone-app-auto-service-api`, develop
 `42b393cb66c9d0a62cf14f80dcfc37745ce09e7e`; main
 `d7e489064bff04ce9620eaf48f9d070d8a13f86d` tem conteúdo idêntico.

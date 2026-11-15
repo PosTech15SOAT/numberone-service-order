@@ -82,9 +82,6 @@ class SagaMainFlowIT extends HttpPostgresSupport {
     @DynamicPropertySource static void participants(DynamicPropertyRegistry p) {
         p.add("app.saga.billing-url", () -> "http://127.0.0.1:" + PARTICIPANTS.getAddress().getPort());
         p.add("app.saga.inventory-url", () -> "http://127.0.0.1:" + PARTICIPANTS.getAddress().getPort());
-        p.add("app.saga.billing-token", () -> "fixture-os-billing");
-        p.add("app.saga.inventory-token", () -> "fixture-os-inventory");
-        p.add("app.saga.billing-inbound-token", () -> "fixture-billing-os");
         p.add("app.history.enabled", () -> true);
         p.add("app.history.worker-enabled", () -> false);
         p.add("app.history.table", () -> HISTORY_TABLE);
@@ -112,7 +109,7 @@ class SagaMainFlowIT extends HttpPostgresSupport {
                 String path = exchange.getRequestURI().getPath();
                 if (path.equals("/internal/inventory/consumptions")) {
                     assertThat(exchange.getRequestMethod()).isEqualTo("POST");
-                    assertThat(exchange.getRequestHeaders().getFirst("Authorization")).isEqualTo("Bearer fixture-os-inventory");
+                    assertThat(exchange.getRequestHeaders().getFirst("Authorization")).isNull();
                     var request = json.readTree(new String(exchange.getRequestBody().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
                     var operation = UUID.fromString(request.get("operationId").asString()); requests.add(request);
                     assertThat(exchange.getRequestHeaders().getFirst("Idempotency-Key")).isEqualTo(operation.toString());
@@ -137,7 +134,7 @@ class SagaMainFlowIT extends HttpPostgresSupport {
                     var found=inventory.get(op);
                     return found==null ? new Response(404,json.writeValueAsString(Map.of("operationId",op,"result","UNKNOWN"))) : new Response(200,found.toString());
                 }
-                assertThat(exchange.getRequestHeaders().getFirst("Authorization")).isEqualTo("Bearer fixture-os-billing");
+                assertThat(exchange.getRequestHeaders().getFirst("Authorization")).isNull();
                 if (path.endsWith("/current")) {
                     budgetLookups.incrementAndGet(); duringBudget.run();
                     if (currentBudget != null) { trace("billing.openapi.yaml", "CurrentBudget", currentBudget); }
@@ -200,7 +197,7 @@ class SagaMainFlowIT extends HttpPostgresSupport {
     }
     private JsonNode internal(UUID order, String suffix, int status) throws Exception {
         var req = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/internal/service-orders/" + order + suffix))
-                .header("Authorization", "Bearer fixture-billing-os").header("X-Correlation-Id", UUID.randomUUID().toString()).GET().build();
+                .header("X-Correlation-Id", UUID.randomUUID().toString()).GET().build();
         var r = http.send(req, HttpResponse.BodyHandlers.ofString()); assertThat(r.statusCode()).isEqualTo(status);
         return json.readTree(r.body());
     }
@@ -264,7 +261,7 @@ class SagaMainFlowIT extends HttpPostgresSupport {
             assertThat(metrics.get("os.history.pending").gauge().value()).isEqualTo(1);
             assertThat(metrics.get("os.history.oldest.pending.seconds").gauge().value()).isPositive();
             expect(503, call("GET", historyPath(f.vehicle()), null, customer(f.customer())));
-            expect(403, call("GET", historyPath(f.vehicle()), null, customer(UUID.randomUUID())));
+            expect(503, call("GET", historyPath(f.vehicle()), null, customer(UUID.randomUUID())));
             expect(409, action(f.order(), "entregar"));
             settlementMode = "PAID"; // Simulates the employee collecting payment in Billing.
             processBillingEvent(payment(f.order(), UUID.randomUUID(), 1, false));
@@ -377,7 +374,7 @@ class SagaMainFlowIT extends HttpPostgresSupport {
         assertThat(historyRow(f.order())).containsEntry("attempts", 2);
     }
 
-    @Test void historyQueryPagesByVehicleAndChecksOwnerPermissionAndBranchOnEveryRequest() throws Exception {
+    @Test void historyQueryPagesByVehicleAndBranchWithoutIdentityOnEveryRequest() throws Exception {
         var f = diagnosisFixture();
         complete(f);
         var secondOrder = createOrder(f.customer(), f.vehicle());
@@ -410,13 +407,13 @@ class SagaMainFlowIT extends HttpPostgresSupport {
         var oldest = expect(200, call("GET", path + "?limit=1&cursor=" + cursor, null, owner));
         assertThat(oldest.path("entries").get(0).path("serviceOrderId").asString()).isEqualTo(f.order().toString());
         assertThat(expect(200, call("GET", path, null)).path("entries").size()).isEqualTo(2);
-        expect(403, call("GET", path + "?cursor=" + cursor, null, customer(anotherCustomer)));
+        expect(200, call("GET", path + "?cursor=" + cursor, null, customer(anotherCustomer)));
         expect(400, call("GET", historyPath(anotherVehicle) + "?cursor=" + cursor, null, customer(anotherCustomer)));
         assertThat(expect(200, call("GET", historyPath(anotherVehicle), null, customer(anotherCustomer))).path("entries").size()).isZero();
         var noPermission = new HashMap<>(owner);
         noPermission.put("X-Authenticated-Permissions", "");
-        expect(403, call("GET", path, null, noPermission));
-        expect(401, call("GET", path, null, Map.of()));
+        expect(200, call("GET", path, null, noPermission));
+        expect(200, call("GET", path, null, Map.of()));
         expect(400, call("GET", path + "?limit=51", null, owner));
         expect(400, call("GET", path + "?cursor=invalid", null, owner));
     }
@@ -567,15 +564,47 @@ class SagaMainFlowIT extends HttpPostgresSupport {
         assertThat(inventory).hasSize(1); assertThat(jdbc.queryForObject("SELECT count(*) FROM saga_operation", Integer.class)).isEqualTo(1);
         expect(409, start(second, key));
     }
-    @Test void internalRoutesRequirePairTokenAndExactHistoricalComposition() throws Exception {
+    @Test void internalRoutesRequireCorrelationAndPreserveExactHistoricalComposition() throws Exception {
         var f = diagnosisFixture(); int version = composition(f.order()); var old = internal(f.order(), "/quotation-context?compositionVersion=" + version, 200);
         addMaterial(f.item()); assertThat(internal(f.order(), "/quotation-context?compositionVersion=" + version, 200)).isEqualTo(old);
         internal(f.order(), "/quotation-context?compositionVersion=999", 404);
-        expect(401, call("GET", "/internal/service-orders/" + f.order(), null));
+        expect(400, call("GET", "/internal/service-orders/" + f.order(), null));
         var req = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/internal/auth/customer-lookup"))
-                .header("Authorization", "Bearer fixture-billing-os").header("X-Correlation-Id", UUID.randomUUID().toString()).POST(HttpRequest.BodyPublishers.noBody()).build();
-        assertThat(http.send(req, HttpResponse.BodyHandlers.ofString()).statusCode()).isEqualTo(403);
+                .header("X-Correlation-Id", UUID.randomUUID().toString()).POST(HttpRequest.BodyPublishers.noBody()).build();
+        assertThat(http.send(req, HttpResponse.BodyHandlers.ofString()).statusCode()).isEqualTo(404);
     }
+    @Test void internalCorrelationIsRequiredAndValidatedWithoutAuthorization() throws Exception {
+        var f = diagnosisFixture();
+        String path = "http://127.0.0.1:" + port + "/internal/service-orders/" + f.order();
+        for (String correlation : List.of("", "invalid-sensitive-correlation", "1-1-1-1-1")) {
+            var request = HttpRequest.newBuilder(URI.create(path));
+            if (!correlation.isEmpty()) { request.header("X-Correlation-Id", correlation); }
+            var response = http.send(request.GET().build(), HttpResponse.BodyHandlers.ofString());
+            assertThat(response.statusCode()).isEqualTo(400);
+            assertThat(json.readTree(response.body()).path("code").asString()).isEqualTo("INVALID_REQUEST");
+            assertThat(response.body()).doesNotContain("invalid-sensitive-correlation");
+        }
+        String correlation = UUID.randomUUID().toString();
+        var response = http.send(HttpRequest.newBuilder(URI.create(path)).header("X-Correlation-Id", correlation)
+                .GET().build(), HttpResponse.BodyHandlers.ofString());
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.headers().firstValue("X-Correlation-Id")).contains(correlation);
+    }
+
+    @Test void startRetryKeepsOriginalDeclaredAuthorAndIdempotencyKey() throws Exception {
+        var f = diagnosisFixture(); addMaterial(f.item()); approve(f.order());
+        UUID key = UUID.randomUUID();
+        expect(200, start(f.item(), key));
+        var original = requests.getFirst();
+        assertThat(original.path("responsibleUserId").asString()).isEqualTo(admin().get("X-Authenticated-Subject"));
+        expect(200, call("PATCH", "/api/admin/itens-ordem-servico/" + f.item() + "/iniciar", null,
+                Map.of("X-Authenticated-Subject", UUID.randomUUID().toString(), "Idempotency-Key", key.toString())));
+        assertThat(inventory).hasSize(1);
+        assertThat(requests).hasSize(1);
+        assertThat(jdbc.queryForObject("SELECT request->>'responsibleUserId' FROM saga_operation WHERE operation_id=?",
+                String.class, key)).isEqualTo(admin().get("X-Authenticated-Subject"));
+    }
+
     @Test void currentBudgetRecoveryRevalidatesLocalVersionAndReplaysAfterRollback() throws Exception {
         var f = diagnosisFixture(); UUID budget = UUID.randomUUID();
         var approval = event("OrcamentoAprovado", f.order(), budget, 1, composition(f.order()));

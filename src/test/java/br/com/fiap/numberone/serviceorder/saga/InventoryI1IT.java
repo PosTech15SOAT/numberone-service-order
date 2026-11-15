@@ -37,18 +37,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 @EnabledIfEnvironmentVariable(named = "I1_INVENTORY_URL", matches = ".+")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "app.branch.id=40000000-0000-4000-8000-000000000001",
-        "app.security.identity.provider=gateway", "app.security.identity.gateway-trusted=true",
         "app.material-reference.provider=http", "app.saga.recovery-enabled=false",
         "app.billing.sqs.enabled=false", "app.history.enabled=false"
 })
 class InventoryI1IT {
     private static final String INVENTORY = System.getenv("I1_INVENTORY_URL");
-    private static final String TOKEN = System.getenv("OS_TO_INVENTORY_TOKEN");
     private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
     private static final String CONSUMPTIONS = "/internal/inventory/consumptions";
     private static final String OPERATIONS = "/internal/inventory/operations/";
     private static final String SETTLEMENTS = "/internal/payments/service-orders/";
-    private static final String BILLING_TOKEN = "i1-test-os-to-billing";
     private static final AtomicReference<String> DROP_OPERATION = new AtomicReference<>();
     private static final ConcurrentLinkedQueue<Forwarded> FORWARDED = new ConcurrentLinkedQueue<>();
     private static final AtomicBoolean SETTLED = new AtomicBoolean();
@@ -62,8 +59,7 @@ class InventoryI1IT {
     @Value("${local.server.port}") int port;
     private final String correlation = UUID.randomUUID().toString();
     private final Map<String, String> admin = Map.of("X-Authenticated-Subject", UUID.randomUUID().toString(),
-            "X-Authenticated-Status", "ACTIVE", "X-Authenticated-Roles", "ADMIN",
-            "X-Authenticated-Permissions", "", "X-Correlation-Id", correlation);
+            "X-Correlation-Id", correlation);
 
     @DynamicPropertySource
     static void participants(DynamicPropertyRegistry registry) throws IOException {
@@ -76,7 +72,6 @@ class InventoryI1IT {
         billing.createContext(SETTLEMENTS, InventoryI1IT::settlement);
         billing.start();
         registry.add("app.saga.billing-url", () -> "http://127.0.0.1:" + billing.getAddress().getPort());
-        registry.add("app.saga.billing-token", () -> BILLING_TOKEN);
     }
 
     @AfterAll static void stopParticipants() {
@@ -91,7 +86,7 @@ class InventoryI1IT {
             String key = exchange.getRequestHeaders().getFirst("Idempotency-Key");
             var request = HttpRequest.newBuilder(URI.create(INVENTORY + exchange.getRequestURI()))
                     .timeout(Duration.ofSeconds(4));
-            for (String name : new String[]{"Authorization", "X-Correlation-Id", "Content-Type", "Idempotency-Key"}) {
+            for (String name : new String[]{"X-Correlation-Id", "Content-Type", "Idempotency-Key"}) {
                 var value = exchange.getRequestHeaders().getFirst(name);
                 if (value != null) { request.header(name, value); }
             }
@@ -118,7 +113,7 @@ class InventoryI1IT {
         try (exchange) {
             String path = exchange.getRequestURI().getPath();
             if (!"GET".equals(exchange.getRequestMethod()) || !path.endsWith("/settlement")
-                    || !("Bearer " + BILLING_TOKEN).equals(exchange.getRequestHeaders().getFirst("Authorization"))) {
+                    || exchange.getRequestHeaders().getFirst("Authorization") != null) {
                 exchange.sendResponseHeaders(400, -1);
                 return;
             }
@@ -274,7 +269,7 @@ class InventoryI1IT {
 
     private JsonNode operation(String key) throws Exception {
         return inventory(200, "GET", OPERATIONS + key, null,
-                Map.of("Authorization", "Bearer " + TOKEN, "X-Correlation-Id", correlation));
+                Map.of("X-Correlation-Id", correlation));
     }
 
     private String addItem(String order, JsonNode service) throws Exception {

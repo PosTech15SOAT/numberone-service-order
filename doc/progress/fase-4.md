@@ -29,7 +29,7 @@ conjunta de Billing/Inventory/plataforma não é inferida dos testes.
   A leitura bloqueia a OS para fornecer composição/estado consistentes.
 - A rota global `/iniciar` apenas valida e devolve prontidão. A rota por item
   persiste `saga_operation`: `operationId`, intenção `START_ITEM`, item, número da
-  tentativa, composição/revisão e pedido imutável com responsável autenticado.
+  tentativa, composição/revisão e pedido imutável com responsável declarado.
   O commit ocorre antes de CT-05; não há transação SQL aberta durante HTTP.
 - A primeira tentativa com materiais deixa Saga `START_PENDING`. Item conserva
   status comercial e mostra `executionState=START_PENDING`, `startOperationId` e
@@ -73,14 +73,13 @@ valor positivo BRL para novos snapshots. Remove a restrição antiga que impedia
 projeção financeira antes do snapshot comercial. Backfill conservador V3 permanece:
 ordens legadas em `MANUAL_INTERVENTION` exigem reconciliação explícita.
 
-Variáveis: `BILLING_BASE_URL`, `INVENTORY_BASE_URL`, `OS_TO_BILLING_TOKEN`,
-`OS_TO_INVENTORY_TOKEN`, `BILLING_TO_OS_TOKEN`. Sem configuração, dependências
-retornam indisponibilidade e rotas internas negam acesso. Token Billing→OS só
-autoriza os dois GETs de CT-02A/03; não autoriza Auth lookup nem rotas administrativas.
-Usar rede privada/TLS e segredos de ambiente. Não há credenciais reais nos testes.
+Variáveis: `BILLING_BASE_URL` e `INVENTORY_BASE_URL`. Sem URL, a dependência
+retorna indisponibilidade. Rotas internas não exigem autenticação e continuam
+exigindo `X-Correlation-Id` UUID. Clientes não enviam Authorization.
+Serviços comunicam-se via ClusterIP; TLS/mTLS e identidade por serviço são evoluções futuras.
 
-CT-05 exige UUID do funcionário: obtido do subject autenticado do Gateway, nunca
-do body. O perfil local usa UUID sintético configurável por `LOCAL_EMPLOYEE_ID`.
+CT-05 exige UUID de autoria declarado em `X-Authenticated-Subject`, nunca no body.
+O header é obrigatório em todos os profiles; não há identidade padrão.
 Correlação UUID pública é propagada; correlação textual legada recebe UUID interno.
 Timeout HTTP: conexão 3s, resposta 5s. CT-07 rejeita `verifiedAt` anterior a 60s ou
 mais de 30s no futuro; sincronização dos relógios deve ser confirmada na integração.
@@ -116,7 +115,7 @@ autorização interna e consulta histórica exata.
 
 Evidência: PostgreSQL **17.9 real via Testcontainers**, HTTP/Tomcat real na OS,
 clientes HTTP reais para **simuladores** Billing e Inventory em loopback. Os
-simuladores partem das fixtures do pacote ativo e verificam token, correlação,
+simuladores partem das fixtures do pacote ativo e verificam ausência de Authorization, correlação,
 idempotência e visibilidade SQL da intenção antes de responder. Eventos entram
 no handler real com JSON Schema; o transporte SQS é coberto separadamente pelo mock.
 

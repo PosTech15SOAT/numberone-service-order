@@ -8,11 +8,11 @@ por fase e pelo menos uma revisão de outro integrante antes de integrar.
 Use Java 25 e Maven Wrapper. `./mvnw clean test` valida regras locais;
 `./mvnw clean verify` acrescenta PostgreSQL via Testcontainers, HTTP real e gate JaCoCo de 80% de linhas.
 Só a classe de bootstrap `ServiceOrderApplication` é excluída; configuração,
-segurança, filtros e controllers continuam medidos. Não ampliar exclusões para passar.
+autoria, filtros e controllers continuam medidos. Não ampliar exclusões para passar.
 Ver README para comandos equivalentes no PowerShell e via Docker.
 
 Novas features seguem `api/application/domain/infrastructure`. DTOs separados,
-injeção por construtor e erros sanitizados. O contrato do Gateway é a referência de identidade.
+injeção por construtor e erros sanitizados. No MVP, headers de identidade representam somente autoria declarada, sem autenticação/autorização HTTP.
 Não introduzir emissor JWT, tabelas RBAC, acesso ao banco de outro serviço ou logs
 de payload/headers completos. Commits: `feat:`, `fix:`, `test:`, `docs:`, `chore:`.
 

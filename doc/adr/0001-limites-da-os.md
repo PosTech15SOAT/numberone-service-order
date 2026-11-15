@@ -1,5 +1,7 @@
 # ADR 0001 — limites e origem da OS
 
+> As decisões de autenticação/autorização HTTP deste registro foram substituídas pela [decisão do MVP](../adr/0004-mvp-sem-autenticacao-http.md).
+
 Status: proposta para revisão de Matheus. Data: 31/10/2026.
 
 ## Contexto

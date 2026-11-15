@@ -2,7 +2,7 @@ param([string]$BaseUrl = 'http://127.0.0.1:18080')
 $ErrorActionPreference = 'Stop'
 # Development-only synthetic data. Never print requests, identity or customer responses.
 if ($BaseUrl -notmatch '^http://(127\.0\.0\.1|localhost):\d+$') { throw 'Use somente a instancia local de demonstracao.' }
-$headers = @{'X-Correlation-Id'='demo-phase2'}
+$headers = @{'X-Correlation-Id'='demo-phase2'; 'X-Authenticated-Subject'=[guid]::NewGuid().ToString()}
 function Invoke-Os([string]$Method, [string]$Path, $Body = $null, [int]$Expected = 200) {
     $params = @{Uri="$BaseUrl$Path"; Method=$Method; Headers=$headers; SkipHttpErrorCheck=$true; ContentType='application/json'}
     if ($null -ne $Body) { $params.Body = ConvertTo-Json -Depth 10 -Compress -InputObject $Body }

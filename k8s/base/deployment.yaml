@@ -35,9 +35,8 @@ spec:
             - name: http
               containerPort: 8080
           envFrom:
-            - configMapRef: {name: numberone-os-config}
             - configMapRef: {name: numberone-os-runtime}
-            - secretRef: {name: numberone-os-integrations, optional: true}
+            - configMapRef: {name: numberone-os-config}
           env:
             - name: DB_URL
               valueFrom:

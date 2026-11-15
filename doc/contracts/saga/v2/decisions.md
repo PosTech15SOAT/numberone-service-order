@@ -22,7 +22,7 @@ explica o efeito de cada definição e o trabalho de cada membro.
 | DEC-12 · retirada cancelada | Manter OS `CANCELLED` e Saga `COMPENSATED`. Registrar retirada em campo próprio, após resolver efeitos. | Matheus |
 | DEC-13 · estorno/entrega | Estorno exige autorização e reconciliação no Billing. Coordenar manualmente o estorno da cobrança que quita a OS com a entrega. | Julio + Matheus |
 | DEC-14 · SQS | Uma fila Standard Billing → OS, com DLQ Standard, inbox e recuperação por estado. | Marcelo + Julio + Matheus |
-| DEC-15 · serviço-serviço | Bearer opaco distinto por par chamador/destino, rotas autorizadas e rede privada. Contexto público continua no Gateway. | Marcelo + donos |
+| DEC-15 · serviço-serviço | MVP sem autenticação/autorização HTTP; comunicação via ClusterIP e autoria declarada. Identidade por serviço, NetworkPolicies e TLS/mTLS são evoluções futuras. | Marcelo + donos |
 | DEC-16 · bancos | Um RDS existente. OS `numberone_os`, Billing `numberone_billing`, Inventory `inventory_db`, cada um com usuário exclusivo. | Marcelo + donos |
 | DEC-17 · histórico | DynamoDB `vehicle_maintenance_history`, com prefixo de ambiente, projetado pela OS via outbox local. | Marcelo + Matheus |
 | DEC-18 · login | Auth consulta cliente por POST interno na OS. Mantém seus usuários, RBAC e emissão atual de JWT. | Marcelo + Matheus |

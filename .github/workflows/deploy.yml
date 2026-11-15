@@ -1,13 +1,15 @@
-name: Deploy manual os
+name: Deploy OS
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: os-deploy-homologation
+  group: os-deploy
   cancel-in-progress: false
 
 jobs:
@@ -19,58 +21,86 @@ jobs:
       upload_jar: true
 
   deploy:
-    name: Publicar e implantar em homologação
+    name: Publicar e implantar no EKS
     needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment: homologation
     env:
+      DEPLOYMENT_REVISION: ${{ github.run_id }}-${{ github.run_attempt }}
       AWS_REGION: ${{ vars.AWS_REGION }}
       AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
-      ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+      ECR_REPOSITORY: numberone-os
       EKS_CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME }}
-      K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
+      K8S_NAMESPACE: numberone-os
       DB_IDENTIFIER: ${{ vars.DB_IDENTIFIER }}
-      DB_SECRET_ARN: ${{ vars.DB_SECRET_ARN }}
       DB_APP_USERNAME: ${{ vars.DB_APP_USERNAME }}
+      OS_BRANCH_ID: ${{ vars.OS_BRANCH_ID }}
+      BILLING_SQS_ENABLED: ${{ vars.BILLING_SQS_ENABLED || 'false' }}
+      BILLING_SQS_QUEUE_URL: ${{ vars.BILLING_SQS_QUEUE_URL }}
+      HISTORY_DYNAMODB_ENABLED: ${{ vars.HISTORY_DYNAMODB_ENABLED || 'false' }}
+      HISTORY_DYNAMODB_TABLE: ${{ vars.HISTORY_DYNAMODB_TABLE }}
 
     steps:
-      - uses: actions/checkout@v7
+      - name: Obter código do repositório
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
-      - name: Validar parâmetros do ambiente protegido
+      - name: Validar parâmetros do deploy
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
         run: |
           set -euo pipefail
-          for name in AWS_REGION AWS_ACCOUNT_ID ECR_REPOSITORY EKS_CLUSTER_NAME K8S_NAMESPACE DB_IDENTIFIER DB_SECRET_ARN DB_APP_USERNAME AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN; do
+          for name in AWS_REGION AWS_ACCOUNT_ID ECR_REPOSITORY EKS_CLUSTER_NAME K8S_NAMESPACE DB_IDENTIFIER DB_APP_USERNAME OS_BRANCH_ID AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN; do
             if [[ -z "${!name:-}" ]]; then
-              echo "::error::$name precisa ser configurado no environment homologation."
+              echo "::error::$name precisa ser configurado no repositório ou organização."
               exit 1
             fi
           done
+          bash scripts/validate-deploy-config.sh
           [[ "$AWS_ACCOUNT_ID" =~ ^[0-9]{12}$ ]]
           [[ "$ECR_REPOSITORY" == numberone-os ]]
           [[ "$K8S_NAMESPACE" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$ ]]
           [[ "$DB_APP_USERNAME" =~ ^[a-z_][a-z0-9_]*$ ]]
-          [[ "$DB_SECRET_ARN" == "arn:aws:secretsmanager:$AWS_REGION:$AWS_ACCOUNT_ID:secret:"* ]]
           echo "KUBECONFIG=$RUNNER_TEMP/os-kubeconfig" >> "$GITHUB_ENV"
 
-      - uses: actions/download-artifact@v8
+      - name: Obter JAR validado
+        uses: actions/download-artifact@v8
         with:
           name: os-application-${{ github.sha }}
           path: target
 
-      - uses: aws-actions/configure-aws-credentials@v6.2.3
+      - name: Configurar credenciais AWS
+        uses: aws-actions/configure-aws-credentials@v6.2.3
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ env.AWS_REGION }}
           allowed-account-ids: ${{ env.AWS_ACCOUNT_ID }}
+
+      - name: Configurar Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.7
+          terraform_wrapper: false
+
+      - name: Descobrir ARN do Secret de banco
+        shell: bash
+        env:
+          TF_DATA_DIR: ${{ runner.temp }}/terraform-secret-discovery
+          TF_IN_AUTOMATION: true
+        run: |
+          set -euo pipefail
+          terraform -chdir=terraform/secret-discovery init -input=false -lockfile=readonly -no-color
+          secret_arn="$(echo 'data.aws_secretsmanager_secret.database.arn' | terraform -chdir=terraform/secret-discovery console -plan -no-color | jq -er '.')"
+          if [[ "$secret_arn" != "arn:aws:secretsmanager:$AWS_REGION:$AWS_ACCOUNT_ID:secret:numberone-os-database-"* ]]; then
+            echo "::error::O ARN do Secret não corresponde à conta e região configuradas."
+            exit 1
+          fi
+          echo "DB_SECRET_ARN=$secret_arn" >> "$GITHUB_ENV"
 
       - name: Validar ECR e EKS da conta configurada
         id: aws
@@ -87,7 +117,8 @@ jobs:
           echo "kubectl=v$version.0" >> "$GITHUB_OUTPUT"
           echo "ECR_URI=$repository_uri" >> "$GITHUB_ENV"
 
-      - uses: azure/setup-kubectl@v4
+      - name: Configurar kubectl
+        uses: azure/setup-kubectl@v4
         with:
           version: ${{ steps.aws.outputs.kubectl }}
 
@@ -96,9 +127,19 @@ jobs:
         run: |
           set -euo pipefail
           aws eks update-kubeconfig --name "$EKS_CLUSTER_NAME" --region "$AWS_REGION"
-          kubectl get namespace "$K8S_NAMESPACE" -o name
-          branch="$(kubectl -n "$K8S_NAMESPACE" get configmap numberone-os-runtime -o jsonpath='{.data.branch-id}')"
-          [[ "$branch" =~ ^[a-fA-F0-9]{8}(-[a-fA-F0-9]{4}){3}-[a-fA-F0-9]{12}$ ]]
+          kubectl create namespace "$K8S_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n "$K8S_NAMESPACE" create configmap numberone-os-runtime \
+            --from-literal=branch-id="$OS_BRANCH_ID" \
+            --from-literal=APP_MATERIAL_REFERENCE_PROVIDER=http \
+            --from-literal=AWS_REGION="$AWS_REGION" \
+            --from-literal=BILLING_SQS_ENABLED="$BILLING_SQS_ENABLED" \
+            --from-literal=BILLING_SQS_MODE=dedicated \
+            --from-literal=BILLING_SQS_QUEUE_URL="$BILLING_SQS_QUEUE_URL" \
+            --from-literal=BILLING_SQS_ENDPOINT= \
+            --from-literal=HISTORY_DYNAMODB_ENABLED="$HISTORY_DYNAMODB_ENABLED" \
+            --from-literal=HISTORY_DYNAMODB_TABLE="$HISTORY_DYNAMODB_TABLE" \
+            --from-literal=HISTORY_DYNAMODB_ENDPOINT= \
+            --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Validar credencial exclusiva do banco
         run: |
@@ -126,7 +167,8 @@ jobs:
             exit 1
           fi
 
-      - uses: aws-actions/amazon-ecr-login@v2.1.6
+      - name: Autenticar no ECR
+        uses: aws-actions/amazon-ecr-login@v2.1.6
 
       - name: Publicar imagem do JAR validado
         id: image
