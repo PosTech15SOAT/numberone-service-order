@@ -2,13 +2,19 @@ package br.com.fiap.numberone.serviceorder.api;
 
 import br.com.fiap.numberone.support.HttpPostgresSupport;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.context.TestPropertySource;
+import java.net.URI;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /** Real HTTP + PostgreSQL. The material lookup is explicitly a fixture, not Inventory integration. */
+@TestPropertySource(properties = "OS_IDENTITY_TOKEN=synthetic-identity-service-token-for-test")
 class ServiceOrderTransportIT extends HttpPostgresSupport {
+    private static final String IDENTITY_TOKEN = "synthetic-identity-service-token-for-test";
     @Test void diagnosisAndMaterialPlanAreLocalAndNeverClaimApprovalOrConsumption() throws Exception {
         var f = diagnosisFixture(); var m = addMaterial(f.item());
         var response = expect(200, call("GET", "/api/admin/ordens-servico/" + f.order(), null));
@@ -40,15 +46,40 @@ class ServiceOrderTransportIT extends HttpPostgresSupport {
         expect(409, call("PATCH", "/api/admin/ordens-servico/" + f.order() + "/entregar", null));
     }
 
-    @Test void trackingAndAdministrationDoNotRequireIdentityOrOwnership() throws Exception {
+    @Test void trackingRequiresAnAuthorizedRoleAndScopesCustomersToTheirOrders() throws Exception {
         var f = diagnosisFixture(); String route = "/api/public/ordens-servico/" + f.order() + "/acompanhamento";
         expect(200, call("GET", route, null, customer(f.customer())));
-        expect(200, call("GET", route, null, customer(UUID.randomUUID())));
-        var withoutPermission = new HashMap<>(customer(f.customer())); withoutPermission.put("X-Authenticated-Permissions", "");
-        expect(200, call("GET", route, null, withoutPermission));
-        expect(200, call("GET", route, null, Map.of()));
-        expect(200, call("GET", "/api/admin/clientes", null, customer(f.customer())));
+        expect(404, call("GET", route, null, customer(UUID.randomUUID())));
+        var withoutPermission = new HashMap<>(customer(f.customer()));
+        withoutPermission.put("X-Authenticated-Permissions", "");
+        expect(403, call("GET", route, null, withoutPermission));
+        expect(401, call("GET", route, null, Map.of()));
         expect(200, call("GET", route, null));
+    }
+
+    @Test void authIdentityLookupRequiresServiceCredentialAndCurrentCustomerMatch() throws Exception {
+        var customer = createCustomer("52998224725");
+        assertThat(verifyCustomer(customer, "52998224725", "wrong-token")).isEqualTo(401);
+        assertThat(verifyCustomer(customer, "11144477735", IDENTITY_TOKEN)).isEqualTo(404);
+        assertThat(verifyCustomer(UUID.randomUUID(), "52998224725", IDENTITY_TOKEN)).isEqualTo(404);
+        assertThat(verifyCustomer(customer, "52998224725", IDENTITY_TOKEN)).isEqualTo(204);
+
+        var inactive = new HashMap<>(customerBody("52998224725"));
+        inactive.put("ativo", false);
+        expect(200, call("PUT", "/api/admin/clientes/" + customer, inactive));
+        assertThat(verifyCustomer(customer, "52998224725", IDENTITY_TOKEN)).isEqualTo(404);
+    }
+
+    private int verifyCustomer(UUID customer, String cpf, String token) throws Exception {
+        var request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port
+                        + "/internal/auth/customer-identity"))
+                .header("X-Correlation-Id", UUID.randomUUID().toString())
+                .header("Authorization", "Bearer " + token)
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(
+                        json.writeValueAsString(Map.of("customerId", customer, "cpf", cpf))))
+                .build();
+        return http.send(request, HttpResponse.BodyHandlers.discarding()).statusCode();
     }
 
     @Test void trackingReadsLegacyApprovalAndStartPendingWithSeparateCommercialStatuses() throws Exception {
