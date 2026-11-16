@@ -22,7 +22,7 @@ public class DynamoMaintenanceHistory implements MaintenanceHistory {
     private final String table;
     private final ObjectMapper json;
 
-    DynamoMaintenanceHistory(DynamoDbClient dynamo, String table, ObjectMapper json) {
+    public DynamoMaintenanceHistory(DynamoDbClient dynamo, String table, ObjectMapper json) {
         this.dynamo = dynamo;
         this.table = table;
         this.json = json;
