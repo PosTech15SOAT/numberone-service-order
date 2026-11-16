@@ -1,9 +1,9 @@
 package br.com.fiap.numberone.serviceorder.api.controllers;
 
+import br.com.fiap.numberone.serviceorder.application.gateways.MaintenanceHistory;
 import br.com.fiap.numberone.serviceorder.application.gateways.SagaDependencyException;
 import br.com.fiap.numberone.serviceorder.domain.exceptions.OrderNotFoundException;
 import br.com.fiap.numberone.serviceorder.domain.valueobjects.MaintenanceSnapshot;
-import br.com.fiap.numberone.serviceorder.infrastructure.history.DynamoMaintenanceHistory;
 import br.com.fiap.numberone.shared.application.gateways.BranchScope;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.ObjectProvider;
@@ -27,10 +27,10 @@ public class MaintenanceHistoryController {
 
     private final JdbcTemplate jdbc;
     private final BranchScope branch;
-    private final ObjectProvider<DynamoMaintenanceHistory> history;
+    private final ObjectProvider<MaintenanceHistory> history;
 
     public MaintenanceHistoryController(JdbcTemplate jdbc, BranchScope branch,
-                                        ObjectProvider<DynamoMaintenanceHistory> history) {
+                                        ObjectProvider<MaintenanceHistory> history) {
         this.jdbc = jdbc;
         this.branch = branch;
         this.history = history;
@@ -62,7 +62,7 @@ public class MaintenanceHistoryController {
             String nextCursor = page.lastKey() == null ? null : Base64.getUrlEncoder().withoutPadding()
                     .encodeToString((scope + page.lastKey()).getBytes(StandardCharsets.US_ASCII));
             return new HistoryPage(page.entries(), nextCursor);
-        } catch (SdkException ex) {
+        } catch (SdkException | MaintenanceHistory.Unavailable ex) {
             throw new SagaDependencyException();
         }
     }

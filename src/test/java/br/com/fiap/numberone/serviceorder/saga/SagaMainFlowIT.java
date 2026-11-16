@@ -2,9 +2,11 @@ package br.com.fiap.numberone.serviceorder.saga;
 
 import br.com.fiap.numberone.serviceorder.infrastructure.messaging.BillingEventCodec;
 import br.com.fiap.numberone.serviceorder.application.events.BillingEvent;
+import br.com.fiap.numberone.serviceorder.application.gateways.MaintenanceHistory;
 import br.com.fiap.numberone.support.HttpPostgresSupport;
 import br.com.fiap.numberone.serviceorder.application.services.ProcessBillingEvent;
 import br.com.fiap.numberone.serviceorder.infrastructure.history.MaintenanceHistoryWorker;
+import br.com.fiap.numberone.serviceorder.infrastructure.history.DynamoMaintenanceHistory;
 import com.sun.net.httpserver.HttpServer;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.*;
@@ -21,6 +23,7 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.*;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.json.JsonMapper;
 import java.net.*;
 import java.net.http.*;
 import java.nio.file.*;
@@ -35,8 +38,9 @@ import static org.assertj.core.api.Assertions.*;
 class SagaMainFlowIT extends HttpPostgresSupport {
     private static final String HISTORY_TABLE = "test_vehicle_maintenance_history";
     private static final GenericContainer<?> DYNAMO = startDynamo();
-    @TestBean(name = "historyDynamoClient", methodName = "fixtureDynamo", enforceOverride = true)
-    private DynamoDbClient dynamo;
+    private static final DynamoDbClient dynamo = fixtureDynamo();
+    @TestBean(name = "maintenanceHistory", methodName = "fixtureHistory", enforceOverride = true)
+    private MaintenanceHistory history;
     @Autowired MaintenanceHistoryWorker historyWorker;
     @Autowired MeterRegistry metrics;
 
@@ -60,6 +64,10 @@ class SagaMainFlowIT extends HttpPostgresSupport {
                 .keySchema(key -> key.attributeName("vehicleId").keyType(KeyType.HASH),
                         key -> key.attributeName("historyKey").keyType(KeyType.RANGE)));
         return client;
+    }
+
+    static MaintenanceHistory fixtureHistory() {
+        return new DynamoMaintenanceHistory(dynamo, HISTORY_TABLE, JsonMapper.builder().build());
     }
 
     private static final HttpServer PARTICIPANTS = server();
