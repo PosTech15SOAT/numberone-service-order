@@ -2,6 +2,7 @@ package br.com.fiap.numberone.serviceorder.infrastructure.history;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
+import tools.jackson.databind.json.JsonMapper;
 
 import static org.assertj.core.api.Assertions.*;
 
@@ -22,6 +23,13 @@ class MaintenanceHistoryConfigurationTest {
         var environment = new MockEnvironment(); environment.setActiveProfiles("kind");
         try (var client = configuration.historyDynamoClient("us-east-1", "http://localstack-dynamodb:4566", environment)) {
             assertThat(client.serviceClientConfiguration().endpointOverride()).hasValue(java.net.URI.create("http://localstack-dynamodb:4566"));
+        }
+    }
+
+    @Test void selectsTheBridgeWithoutRequiringADynamoTable() {
+        try (var history = configuration.maintenanceHistory(JsonMapper.builder().build(), new MockEnvironment(),
+                "https://bridge.example.test", "/runtime/token", "us-east-1", "", "")) {
+            assertThat(history).isInstanceOf(MaintenanceHistoryBridge.class);
         }
     }
 }
