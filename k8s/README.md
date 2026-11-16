@@ -30,7 +30,7 @@ O workflow manual usa o environment `homologation`, aceita `main` e executa o CI
 
 O Terraform consulta os metadados de `numberone-os-database` para resolver o ARN; o runner precisa de `secretsmanager:DescribeSecret`. Configure os secrets do GitHub `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` e `AWS_SESSION_TOKEN` para a sessão AWS Academy. O fluxo monta JDBC com TLS para `numberone_os` e sincroniza `numberone-os-database` no namespace. O usuário precisa ter acesso ao banco exclusivo e às migrations Flyway da aplicação. O Service interno é `numberone-os-service:8080` com destino na porta HTTP 8080 do container.
 
-A plataforma deve provisionar o ConfigMap `numberone-os-runtime` com `branch-id` UUID. As URLs `BILLING_BASE_URL` e `INVENTORY_BASE_URL` estão no ConfigMap do overlay de homologação. O ConfigMap runtime pode fornecer `APP_MATERIAL_REFERENCE_PROVIDER`, `BILLING_SQS_ENABLED`, `BILLING_SQS_MODE`, `BILLING_SQS_QUEUE_URL`, `HISTORY_DYNAMODB_ENABLED`, `HISTORY_DYNAMODB_TABLE` e `AWS_REGION` quando os recursos e as permissões correspondentes estiverem disponíveis. A configuração do Datadog segue no Deployment. As opções de integração são injetadas quando configuradas. Mudanças de valores usados como variáveis de ambiente exigem recriar os Pods.
+A plataforma deve provisionar o ConfigMap `numberone-os-runtime` com `branch-id` UUID. As URLs `BILLING_BASE_URL` e `INVENTORY_BASE_URL` estão no ConfigMap do overlay de homologação. O ConfigMap runtime pode fornecer `APP_MATERIAL_REFERENCE_PROVIDER`, `BILLING_SQS_ENABLED`, `BILLING_SQS_MODE`, `BILLING_SQS_QUEUE_URL`, `HISTORY_DYNAMODB_ENABLED`, `HISTORY_BRIDGE_URL`, `HISTORY_DYNAMODB_TABLE` e `AWS_REGION` quando os recursos e as permissões correspondentes estiverem disponíveis. A configuração do Datadog segue no Deployment. As opções de integração são injetadas quando configuradas. Mudanças de valores usados como variáveis de ambiente exigem recriar os Pods.
 
 ## Diagnóstico e rollback
 
@@ -50,3 +50,15 @@ O Kind compartilhado está em `numberone-billing-service/dev/kind`; os overlays 
 repositório continuam sendo reutilizados, com os ajustes de composição feitos na raiz integrada.
 
 Fluxo de branches, CI e deploy automático: [CI/CD](CI-CD.md).
+
+### Histórico pela ponte HTTP
+
+Na AWS Academy, configure `HISTORY_DYNAMODB_ENABLED=true` e `HISTORY_BRIDGE_URL`
+com o output `billing_events_bridge_url`. O overlay de homologação projeta o
+token do ServiceAccount da OS para envio e consulta de histórico e para consumo
+SQS via HTTP, com renovação feita pelo kubelet. Configure
+`BILLING_SQS_BRIDGE_URL` com a mesma URL ao habilitar a fila nesse ambiente.
+
+Com `HISTORY_BRIDGE_URL` vazio, a aplicação usa o DynamoDB direto através das
+configurações de tabela, região e endpoint. O overlay Kind segue usando
+DynamoDB no LocalStack.

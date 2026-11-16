@@ -1,5 +1,6 @@
 package br.com.fiap.numberone.serviceorder.infrastructure.history;
 
+import br.com.fiap.numberone.serviceorder.application.gateways.MaintenanceHistory;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
@@ -10,11 +11,11 @@ import software.amazon.awssdk.core.exception.SdkException;
 public class MaintenanceHistoryWorker {
     private static final Logger log = LoggerFactory.getLogger(MaintenanceHistoryWorker.class);
     private final MaintenanceHistoryOutbox outbox;
-    private final DynamoMaintenanceHistory history;
+    private final MaintenanceHistory history;
     private final MeterRegistry metrics;
     private final boolean automatic;
 
-    MaintenanceHistoryWorker(MaintenanceHistoryOutbox outbox, DynamoMaintenanceHistory history,
+    MaintenanceHistoryWorker(MaintenanceHistoryOutbox outbox, MaintenanceHistory history,
                              MeterRegistry metrics, boolean automatic) {
         this.outbox = outbox;
         this.history = history;
@@ -38,10 +39,12 @@ public class MaintenanceHistoryWorker {
     }
 
     private void project(MaintenanceHistoryOutbox.Claim claim) {
-        DynamoMaintenanceHistory.Result result;
+        var revision = new MaintenanceHistory.Revision(claim.vehicleId(), claim.key(), claim.branchId(),
+                claim.orderId(), claim.version(), claim.snapshot());
+        MaintenanceHistory.Result result;
         try {
-            result = history.put(claim); // The claim statement has committed before any network I/O.
-        } catch (SdkException ex) {
+            result = history.put(revision); // The claim statement has committed before any network I/O.
+        } catch (SdkException | MaintenanceHistory.Unavailable ex) {
             if (outbox.finish(claim, "PENDING", "DYNAMODB_UNAVAILABLE")) {
                 metrics.counter("os.history.retries").increment();
                 log.warn("History projection scheduled for retry, orderId={}, version={}, errorType={}",
@@ -49,7 +52,7 @@ public class MaintenanceHistoryWorker {
             }
             return;
         }
-        if (result == DynamoMaintenanceHistory.Result.COLLISION) {
+        if (result == MaintenanceHistory.Result.COLLISION) {
             if (outbox.finish(claim, "COLLISION", "CONTENT_MISMATCH")) {
                 log.error("History projection collision, orderId={}, version={}", claim.orderId(), claim.version());
             }

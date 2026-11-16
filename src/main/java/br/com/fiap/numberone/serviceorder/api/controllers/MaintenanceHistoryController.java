@@ -1,10 +1,11 @@
 package br.com.fiap.numberone.serviceorder.api.controllers;
 
+import br.com.fiap.numberone.serviceorder.application.gateways.MaintenanceHistory;
 import br.com.fiap.numberone.serviceorder.application.gateways.SagaDependencyException;
 import br.com.fiap.numberone.serviceorder.domain.exceptions.OrderNotFoundException;
 import br.com.fiap.numberone.serviceorder.domain.valueobjects.MaintenanceSnapshot;
-import br.com.fiap.numberone.serviceorder.infrastructure.history.DynamoMaintenanceHistory;
 import br.com.fiap.numberone.shared.application.gateways.BranchScope;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -26,10 +27,10 @@ public class MaintenanceHistoryController {
 
     private final JdbcTemplate jdbc;
     private final BranchScope branch;
-    private final ObjectProvider<DynamoMaintenanceHistory> history;
+    private final ObjectProvider<MaintenanceHistory> history;
 
     public MaintenanceHistoryController(JdbcTemplate jdbc, BranchScope branch,
-                                        ObjectProvider<DynamoMaintenanceHistory> history) {
+                                        ObjectProvider<MaintenanceHistory> history) {
         this.jdbc = jdbc;
         this.branch = branch;
         this.history = history;
@@ -39,13 +40,14 @@ public class MaintenanceHistoryController {
 
     @GetMapping("/api/public/veiculos/{vehicleId}/historico-manutencoes")
     public HistoryPage history(@PathVariable UUID vehicleId, @RequestParam(defaultValue = "20") int limit,
-                               @RequestParam(required = false) String cursor) {
+                               @RequestParam(required = false) String cursor, HttpServletRequest request) {
+        UUID customer = TrackingAccess.customerScope(request);
         UUID branchId = branch.id();
         jdbc.queryForList("""
-                SELECT v.id FROM veiculo v WHERE v.id=? AND EXISTS (
+                SELECT v.id FROM veiculo v WHERE v.id=? AND (?::uuid IS NULL OR v.id_cliente=?) AND EXISTS (
                     SELECT 1 FROM ordem_servico o WHERE o.id_veiculo=v.id AND o.branch_id=?
                 )
-                """, UUID.class, vehicleId, branchId).stream().findFirst().orElseThrow(OrderNotFoundException::new);
+                """, UUID.class, vehicleId, customer, customer, branchId).stream().findFirst().orElseThrow(OrderNotFoundException::new);
         if (limit < 1 || limit > 50) {
             throw new IllegalArgumentException("INVALID_HISTORY_LIMIT");
         }
@@ -60,7 +62,7 @@ public class MaintenanceHistoryController {
             String nextCursor = page.lastKey() == null ? null : Base64.getUrlEncoder().withoutPadding()
                     .encodeToString((scope + page.lastKey()).getBytes(StandardCharsets.US_ASCII));
             return new HistoryPage(page.entries(), nextCursor);
-        } catch (SdkException ex) {
+        } catch (SdkException | MaintenanceHistory.Unavailable ex) {
             throw new SagaDependencyException();
         }
     }

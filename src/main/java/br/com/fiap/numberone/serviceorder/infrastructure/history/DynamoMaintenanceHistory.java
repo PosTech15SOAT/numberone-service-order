@@ -1,5 +1,6 @@
 package br.com.fiap.numberone.serviceorder.infrastructure.history;
 
+import br.com.fiap.numberone.serviceorder.application.gateways.MaintenanceHistory;
 import br.com.fiap.numberone.serviceorder.domain.valueobjects.MaintenanceSnapshot;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
@@ -11,7 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-public class DynamoMaintenanceHistory {
+public class DynamoMaintenanceHistory implements MaintenanceHistory {
     private static final String VEHICLE = "vehicleId";
     private static final String KEY = "historyKey";
     private static final String BRANCH = "branchId";
@@ -21,15 +22,14 @@ public class DynamoMaintenanceHistory {
     private final String table;
     private final ObjectMapper json;
 
-    DynamoMaintenanceHistory(DynamoDbClient dynamo, String table, ObjectMapper json) {
+    public DynamoMaintenanceHistory(DynamoDbClient dynamo, String table, ObjectMapper json) {
         this.dynamo = dynamo;
         this.table = table;
         this.json = json;
     }
 
-    enum Result { WRITTEN, REPLAYED, COLLISION }
-
-    Result put(MaintenanceHistoryOutbox.Claim claim) {
+    @Override
+    public Result put(Revision claim) {
         var key = key(claim.vehicleId(), claim.key());
         var item = Map.of(VEHICLE, key.get(VEHICLE), KEY, key.get(KEY),
                 BRANCH, AttributeValue.fromS(claim.branchId().toString()),
@@ -47,8 +47,7 @@ public class DynamoMaintenanceHistory {
         }
     }
 
-    public record Page(List<MaintenanceSnapshot> entries, String lastKey) { }
-
+    @Override
     public Page query(UUID vehicle, UUID branch, int limit, String after) {
         var request = QueryRequest.builder().tableName(table).limit(50).scanIndexForward(false).consistentRead(true)
                 .keyConditionExpression("#vehicle = :vehicle").filterExpression("#branch = :branch")
@@ -85,5 +84,10 @@ public class DynamoMaintenanceHistory {
 
     private static Map<String, AttributeValue> key(UUID vehicle, String historyKey) {
         return Map.of(VEHICLE, AttributeValue.fromS(vehicle.toString()), KEY, AttributeValue.fromS(historyKey));
+    }
+
+    @Override
+    public void close() {
+        dynamo.close();
     }
 }

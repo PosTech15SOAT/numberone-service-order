@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
 
 /** No SQL messages, rejected values, personal data or exception stacks in responses/logs. */
@@ -42,6 +43,10 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(br.com.fiap.numberone.serviceorder.application.gateways.SagaDependencyException.class)
     ResponseEntity<ErrorResponse> sagaUnavailable(Exception ex) {
         return ResponseEntity.status(503).body(new ErrorResponse(503, "DEPENDENCY_UNAVAILABLE", List.of(), "DEPENDENCY_UNAVAILABLE"));
+    }
+    @ExceptionHandler(ResponseStatusException.class)
+    ResponseEntity<ErrorResponse> status(ResponseStatusException ex) {
+        return error(ex.getStatusCode().value(), ex.getReason());
     }
     @ExceptionHandler(Exception.class)
     ResponseEntity<ErrorResponse> unexpected(Exception ex) { return error(500, "INTERNAL_ERROR"); }
