@@ -167,3 +167,16 @@ A documentação transversal está no clone irmão
 [Billing: prontidão EKS](../numberone-billing-service/docs/deployment/eks-readiness/README.md).
 A orquestração local compartilhada passa a ficar em
 [Billing/dev/kind](../numberone-billing-service/dev/kind/README.md), reutilizando este overlay Kind.
+
+
+### Observabilidade Datadog
+
+A imagem empacota `dd-java-agent` 1.64.2 com checksum e o carrega por `-javaagent`; o Deployment configura `DD_SERVICE=numberone-os`, `DD_AGENT_HOST=status.hostIP`, `DD_TRACE_ENABLED=true` e `DD_LOGS_INJECTION=true`. O Deployment usa `DD_ENV=academy`. A renderização do deploy recebe `AWS_ACCOUNT_ID` de `vars.AWS_ACCOUNT_ID` e usa `GITHUB_SHA` como `DD_VERSION`; o entrypoint acrescenta `aws_account_id:<conta>` em `DD_TAGS`, preservando as demais tags. Cada integrante usa a variável de sua conta. Confirme o Agent APM no nó e a porta TCP 8126, coleta de stdout e que não há injeção automática adicional. No kind, tracing permanece desabilitado. O tracer não exige que o Agent esteja disponível para iniciar. A imagem desabilita query strings em spans HTTP; não habilite captura de Authorization, payloads ou outros dados sensíveis.
+
+Os logs em stdout usam JSON ECS, com timestamp, serviço, nível, logger, mensagem e contexto; `dd.trace_id` e `dd.span_id` são inseridos pelo tracer quando há span ativo. Verifique o parsing de objetos ECS e IDs como strings no Datadog antes de assumir a ligação log/trace. A OS utiliza `correlation_id` nas requisições; em `/api/**` aceita texto válido e em `/internal/**` exige UUID. A inbox/Saga e a projeção de histórico usam IDs próprios; procure por `service_order.id`, `event.id`, `saga.id` ou `correlation_id` nos eventos existentes. A propagação HTTP automática precisa ser verificada com Gateway e serviços reais; SQS e ponte HTTP não comprovam uma trace única, portanto mantenha a correlação operacional por IDs. Métricas HTTP/APM dependem da ingestão; a OS conserva DogStatsD existente. Para o vídeo, mostrar os três serviços, chamadas, erros e latência, log e trace relacionados e uma Saga por IDs, verificando ausência de segredos. Nenhuma recepção no Datadog foi comprovada localmente.
+
+Os eventos operacionais seguem o padrão do Billing: ECS em stdout, SLF4J com `event.code` e IDs estruturados, `correlation_id` e mensagens sem payloads ou credenciais. Para APM, filtre por `env:academy`, `service:numberone-os`, `version:<sha>` e `aws_account_id:<conta>`. `DD_TAGS` não garante que a conta apareça no JSON de logs: validar enriquecimento no Agent/pipeline e ingestão real no EKS.
+
+No JSON ECS, `service.name` deriva de `spring.application.name` (`numberone-service-order`); o tracer injeta `dd.service=numberone-os`. São campos de origens distintas; o mapeamento usado pelo pipeline Datadog deve ser verificado no EKS.
+
+A nomenclatura de atributos usa ponto para entidades ou contextos (`service_order.id`, `budget.revision_number`, `event.code`) e underline para palavras compostas (`service_order_item.id`). O campo técnico independente `correlation_id` é usado no MDC e JSON; `X-Correlation-Id` continua como header. Campos oficiais como `dd.trace_id` e `dd.span_id` são preservados.

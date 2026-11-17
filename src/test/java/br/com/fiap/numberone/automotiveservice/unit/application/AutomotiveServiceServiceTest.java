@@ -5,7 +5,6 @@ import br.com.fiap.numberone.automotiveservice.application.services.AutomotiveSe
 import br.com.fiap.numberone.automotiveservice.domain.entities.AutomotiveService;
 import br.com.fiap.numberone.automotiveservice.domain.exceptions.AutoServiceNotFoundException;
 import br.com.fiap.numberone.automotiveservice.domain.exceptions.AutomotiveServiceBusinessException;
-import br.com.fiap.numberone.shared.application.gateways.LoggerGateway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,14 +31,11 @@ class AutomotiveServiceServiceTest {
     @Mock
     private AutomotiveServiceGateway gateway;
 
-    @Mock
-    private LoggerGateway logger;
-
     private AutomotiveServiceService service;
 
     @BeforeEach
     void setUp() {
-        service = new AutomotiveServiceService(gateway, logger);
+        service = new AutomotiveServiceService(gateway);
     }
 
     @Test
@@ -132,7 +128,6 @@ class AutomotiveServiceServiceTest {
 
         // Then
         assertThat(result).containsExactlyElementsOf(services);
-        verify(logger).info("Buscando todos os serviços");
     }
 
     @Test
@@ -147,7 +142,6 @@ class AutomotiveServiceServiceTest {
 
         // Then
         assertThat(result).isSameAs(existing);
-        verify(logger).info("Buscando serviço automotivo {}", id);
     }
 
     @Test

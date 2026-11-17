@@ -34,6 +34,10 @@ public class MaintenanceHistoryWorker {
         }
     }
 
+    private static void safely(Runnable logging) {
+        try { logging.run(); } catch (RuntimeException ignored) { /* Não altera o processamento. */ }
+    }
+
     public void tick() {
         outbox.claim().ifPresent(this::project);
     }
@@ -47,14 +51,17 @@ public class MaintenanceHistoryWorker {
         } catch (SdkException | MaintenanceHistory.Unavailable ex) {
             if (outbox.finish(claim, "PENDING", "DYNAMODB_UNAVAILABLE")) {
                 metrics.counter("os.history.retries").increment();
-                log.warn("History projection scheduled for retry, orderId={}, version={}, errorType={}",
-                        claim.orderId(), claim.version(), ex.getClass().getSimpleName());
+                safely(() -> log.atWarn().addKeyValue("event.code", "OS_HISTORY_PROJECTION_RETRY")
+                        .addKeyValue("service_order.id", claim.orderId()).addKeyValue("service_order.version", claim.version())
+                        .addKeyValue("error.type", ex.getClass().getName()).log("Projeção do histórico agendada para nova tentativa"));
             }
             return;
         }
         if (result == MaintenanceHistory.Result.COLLISION) {
             if (outbox.finish(claim, "COLLISION", "CONTENT_MISMATCH")) {
-                log.error("History projection collision, orderId={}, version={}", claim.orderId(), claim.version());
+                safely(() -> log.atError().addKeyValue("event.code", "OS_HISTORY_PROJECTION_COLLISION")
+                        .addKeyValue("service_order.id", claim.orderId()).addKeyValue("service_order.version", claim.version())
+                        .log("Conflito na projeção do histórico"));
             }
         } else if (outbox.finish(claim, "PROJECTED", null)) {
             metrics.counter("os.history.projected", "result", result.name()).increment();

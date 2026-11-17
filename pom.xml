@@ -14,6 +14,7 @@
     <mapstruct.version>1.5.5.Final</mapstruct.version>
     <testcontainers.version>1.21.4</testcontainers.version>
     <aws-sdk.version>2.31.54</aws-sdk.version>
+    <dd-trace.version>1.64.2</dd-trace.version>
     <argLine/>
   </properties>
   <dependencies>
@@ -32,6 +33,7 @@
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-webmvc</artifactId></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-actuator</artifactId></dependency>
     <dependency><groupId>io.micrometer</groupId><artifactId>micrometer-registry-statsd</artifactId></dependency>
+    <dependency><groupId>com.datadoghq</groupId><artifactId>dd-trace-api</artifactId><version>${dd-trace.version}</version></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>
   </dependencies>
   <build><resources>

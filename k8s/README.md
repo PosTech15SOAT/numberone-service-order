@@ -32,6 +32,9 @@ O Terraform consulta os metadados de `numberone-os-database` para resolver o ARN
 
 A plataforma deve provisionar o ConfigMap `numberone-os-runtime` com `branch-id` UUID. As URLs `BILLING_BASE_URL` e `INVENTORY_BASE_URL` estão no ConfigMap do overlay de homologação. O ConfigMap runtime pode fornecer `APP_MATERIAL_REFERENCE_PROVIDER`, `BILLING_SQS_ENABLED`, `BILLING_SQS_MODE`, `BILLING_SQS_QUEUE_URL`, `HISTORY_DYNAMODB_ENABLED`, `HISTORY_BRIDGE_URL`, `HISTORY_DYNAMODB_TABLE` e `AWS_REGION` quando os recursos e as permissões correspondentes estiverem disponíveis. A configuração do Datadog segue no Deployment. As opções de integração são injetadas quando configuradas. Mudanças de valores usados como variáveis de ambiente exigem recriar os Pods.
 
+O tracer Datadog descarta traces `GET /actuator/health` e seus caminhos filhos
+do serviço `numberone-os`; os probes Kubernetes continuam ativos.
+
 ## Diagnóstico e rollback
 
 O resumo do workflow registra commit, digest, namespace e resultado. Use o estado de Deployment, Pods e Service para investigar rollout. Para voltar a uma imagem anterior, recupere seu digest no resumo da execução anterior e confirme que a imagem entende o schema atual. Aplique o digest anterior e aguarde readiness antes de liberar tráfego:
