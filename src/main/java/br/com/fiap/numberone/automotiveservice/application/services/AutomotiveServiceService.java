@@ -4,7 +4,6 @@ import br.com.fiap.numberone.automotiveservice.application.gateways.AutomotiveSe
 import br.com.fiap.numberone.automotiveservice.domain.entities.AutomotiveService;
 import br.com.fiap.numberone.automotiveservice.domain.exceptions.AutoServiceNotFoundException;
 import br.com.fiap.numberone.automotiveservice.domain.exceptions.AutomotiveServiceBusinessException;
-import br.com.fiap.numberone.shared.application.gateways.LoggerGateway;
 
 import java.util.List;
 import java.util.UUID;
@@ -13,11 +12,9 @@ import java.util.UUID;
 public class AutomotiveServiceService {
 
     private final AutomotiveServiceGateway autoServiceGateway;
-    private final LoggerGateway logger;
 
-    public AutomotiveServiceService(AutomotiveServiceGateway autoServiceGateway, LoggerGateway loggerGateway) {
+    public AutomotiveServiceService(AutomotiveServiceGateway autoServiceGateway) {
         this.autoServiceGateway = autoServiceGateway;
-        this.logger = loggerGateway;
     }
 
     public AutomotiveService create(AutomotiveService autoService) {
@@ -44,12 +41,10 @@ public class AutomotiveServiceService {
     }
 
     public List<AutomotiveService> findAll() {
-        logger.info("Buscando todos os serviços");
         return autoServiceGateway.findAllActive();
     }
 
     public AutomotiveService findById(UUID id) {
-        logger.info("Buscando serviço automotivo {}", id);
         return autoServiceGateway.findById(id)
                 .orElseThrow(() -> new AutoServiceNotFoundException("Serviço automotivo não encontrado"));
     }

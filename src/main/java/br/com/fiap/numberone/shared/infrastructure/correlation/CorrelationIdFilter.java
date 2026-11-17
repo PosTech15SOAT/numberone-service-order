@@ -34,12 +34,17 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
             errors.write(response, 400);
             return;
         }
+        String previousCorrelation = MDC.get(CorrelationIdResolver.MDC_KEY);
         MDC.put(CorrelationIdResolver.MDC_KEY, id);
         try {
             response.setHeader(CorrelationIdResolver.HEADER, id);
             chain.doFilter(request, response);
         } finally {
-            MDC.remove(CorrelationIdResolver.MDC_KEY);
+            if (previousCorrelation == null) {
+                MDC.remove(CorrelationIdResolver.MDC_KEY);
+            } else {
+                MDC.put(CorrelationIdResolver.MDC_KEY, previousCorrelation);
+            }
         }
     }
 }

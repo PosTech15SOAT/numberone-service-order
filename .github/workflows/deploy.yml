@@ -154,13 +154,16 @@ jobs:
           trap 'rm -rf "$runtime"' EXIT
           aws rds describe-db-instances --db-instance-identifier "$DB_IDENTIFIER" \
             --query 'DBInstances[0]' --output json > "$runtime/rds.json"
-          jq -e --arg secret "$DB_SECRET_ARN" '
-            .DBInstanceStatus == "available" and .Engine == "postgres"
+          if ! jq -e --arg secret "$DB_SECRET_ARN" '
+            (.DBInstanceStatus == "available" or .DBInstanceStatus == "backing-up") and .Engine == "postgres"
             and (.Endpoint.Address | type == "string" and length > 0)
             and (.Endpoint.Port | type == "number")
             and (.MasterUsername | type == "string" and length > 0)
             and .MasterUserSecret.SecretArn != $secret
-          ' "$runtime/rds.json" >/dev/null
+          ' "$runtime/rds.json" >/dev/null; then
+            echo "::error::Metadados do RDS inválidos: verifique status, engine PostgreSQL, endpoint, usuário master e separação dos Secrets."
+            exit 1
+          fi
           aws secretsmanager get-secret-value --secret-id "$DB_SECRET_ARN" \
             --query SecretString --output text > "$runtime/credentials.json"
           if ! jq -e --arg username "$DB_APP_USERNAME" --slurpfile rds "$runtime/rds.json" '

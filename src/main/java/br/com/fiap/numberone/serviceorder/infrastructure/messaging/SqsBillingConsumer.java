@@ -38,8 +38,12 @@ public class SqsBillingConsumer {
             for (var message : queue.receive()) { consume(message); }
         } catch (RuntimeException ex) {
             metrics.counter("os.billing.failure", "stage", "poll").increment();
-            log.warn("Billing SQS poll failed exceptionType={}", ex.getClass().getSimpleName());
+            safely(() -> log.atWarn().addKeyValue("event.code", "OS_BILLING_POLL_FAILED")
+                    .addKeyValue("error.type", ex.getClass().getName()).log("Falha ao consultar eventos de Billing na SQS"));
         }
+    }
+    private static void safely(Runnable logging) {
+        try { logging.run(); } catch (RuntimeException ignored) { /* Não altera o processamento. */ }
     }
     public void consume(Message message) {
         BillingEvent identity = null;
@@ -59,8 +63,10 @@ public class SqsBillingConsumer {
             var outcome = handler.process(event); // REQUIRES_NEW commits before returning.
             metrics.counter("os.billing.processed", "outcome", outcome.name()).increment();
             metrics.summary("os.billing.event.delay.seconds").record(Math.max(0, Duration.between(event.occurredAt(), Instant.now()).toSeconds()));
-            log.info("Billing event eventId={} correlationId={} serviceOrderId={} sagaId={} outcome={}",
-                    event.id(), event.correlationId(), event.orderId(), event.orderId(), outcome);
+            safely(() -> log.atInfo().addKeyValue("event.code", "OS_BILLING_EVENT_PROCESSED")
+                    .addKeyValue("event.id", event.id()).addKeyValue("correlation_id", event.correlationId())
+                    .addKeyValue("service_order.id", event.orderId()).addKeyValue("saga.id", event.orderId())
+                    .addKeyValue("event.outcome", outcome.name()).log("Evento de Billing processado"));
             if (!leaseFailed.get()) {
                 queue.acknowledge(message.receiptHandle());
             }
@@ -71,11 +77,15 @@ public class SqsBillingConsumer {
             var reason = java.util.Set.of("INVALID_ENVELOPE", "INVALID_BILLING_EVENT", "REVISION_OUT_OF_RANGE",
                     "EVENT_ID_COLLISION", "HANDLER_NOT_AVAILABLE_PHASE3", "BUDGET_COMPOSITION_CONFLICT",
                     "SAGA_STATE_REQUIRES_RECONCILIATION").contains(String.valueOf(ex.getMessage())) ? ex.getMessage() : ex.getClass().getSimpleName();
-            log.warn("Billing delivery unacknowledged sqsMessageId={} eventId={} correlationId={} serviceOrderId={} sagaId={} receiveCount={} reason={}",
-                    message.messageId(),
-                    identity == null ? null : identity.id(), identity == null ? null : identity.correlationId(),
-                    identity == null ? null : identity.orderId(), identity == null ? null : identity.orderId(),
-                    message.attributes().get(MessageSystemAttributeName.APPROXIMATE_RECEIVE_COUNT), reason);
+            var eventIdentity = identity;
+            safely(() -> log.atWarn().addKeyValue("event.code", "OS_BILLING_EVENT_UNACKNOWLEDGED")
+                    .addKeyValue("sqs.message_id", message.messageId())
+                    .addKeyValue("event.id", eventIdentity == null ? null : eventIdentity.id())
+                    .addKeyValue("correlation_id", eventIdentity == null ? null : eventIdentity.correlationId())
+                    .addKeyValue("service_order.id", eventIdentity == null ? null : eventIdentity.orderId())
+                    .addKeyValue("saga.id", eventIdentity == null ? null : eventIdentity.orderId())
+                    .addKeyValue("attempt.number", message.attributes().get(MessageSystemAttributeName.APPROXIMATE_RECEIVE_COUNT))
+                    .addKeyValue("error.code", reason).log("Entrega de Billing não confirmada"));
         } finally {
             renewal.cancel(true);
             heartbeat.shutdownNow();
