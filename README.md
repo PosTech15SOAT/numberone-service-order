@@ -120,6 +120,8 @@ iniciar item, cancelar OS/item e retomar compensação. Não existe identidade p
 `/api/**` exige `X-Correlation-Id` textual válido; `/internal/**` exige UUID.
 Correlação, `Idempotency-Key`, autoria persistida e filtros de filial permanecem.
 Clientes de Billing e Inventory usam URLs configuráveis, sem Bearer ou tokens.
+A consulta de identidade de cliente em `POST /internal/auth/customer-identity`
+também não exige Authorization; continua validando UUID, CPF e cliente ativo.
 Forneça `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` e `OS_BRANCH_ID` pela configuração.
 
 Os serviços comunicam-se via ClusterIP. Proteção externa está fora do escopo
