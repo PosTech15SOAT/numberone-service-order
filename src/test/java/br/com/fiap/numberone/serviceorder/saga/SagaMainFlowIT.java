@@ -2,9 +2,11 @@ package br.com.fiap.numberone.serviceorder.saga;
 
 import br.com.fiap.numberone.serviceorder.infrastructure.messaging.BillingEventCodec;
 import br.com.fiap.numberone.serviceorder.application.events.BillingEvent;
+import br.com.fiap.numberone.serviceorder.application.gateways.MaintenanceHistory;
 import br.com.fiap.numberone.support.HttpPostgresSupport;
 import br.com.fiap.numberone.serviceorder.application.services.ProcessBillingEvent;
 import br.com.fiap.numberone.serviceorder.infrastructure.history.MaintenanceHistoryWorker;
+import br.com.fiap.numberone.serviceorder.infrastructure.history.DynamoMaintenanceHistory;
 import com.sun.net.httpserver.HttpServer;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.*;
@@ -21,6 +23,7 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.*;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.json.JsonMapper;
 import java.net.*;
 import java.net.http.*;
 import java.nio.file.*;
@@ -35,8 +38,9 @@ import static org.assertj.core.api.Assertions.*;
 class SagaMainFlowIT extends HttpPostgresSupport {
     private static final String HISTORY_TABLE = "test_vehicle_maintenance_history";
     private static final GenericContainer<?> DYNAMO = startDynamo();
-    @TestBean(name = "historyDynamoClient", methodName = "fixtureDynamo", enforceOverride = true)
-    private DynamoDbClient dynamo;
+    private static final DynamoDbClient dynamo = fixtureDynamo();
+    @TestBean(name = "maintenanceHistory", methodName = "fixtureHistory", enforceOverride = true)
+    private MaintenanceHistory history;
     @Autowired MaintenanceHistoryWorker historyWorker;
     @Autowired MeterRegistry metrics;
 
@@ -60,6 +64,10 @@ class SagaMainFlowIT extends HttpPostgresSupport {
                 .keySchema(key -> key.attributeName("vehicleId").keyType(KeyType.HASH),
                         key -> key.attributeName("historyKey").keyType(KeyType.RANGE)));
         return client;
+    }
+
+    static MaintenanceHistory fixtureHistory() {
+        return new DynamoMaintenanceHistory(dynamo, HISTORY_TABLE, JsonMapper.builder().build());
     }
 
     private static final HttpServer PARTICIPANTS = server();
@@ -261,7 +269,7 @@ class SagaMainFlowIT extends HttpPostgresSupport {
             assertThat(metrics.get("os.history.pending").gauge().value()).isEqualTo(1);
             assertThat(metrics.get("os.history.oldest.pending.seconds").gauge().value()).isPositive();
             expect(503, call("GET", historyPath(f.vehicle()), null, customer(f.customer())));
-            expect(503, call("GET", historyPath(f.vehicle()), null, customer(UUID.randomUUID())));
+            expect(404, call("GET", historyPath(f.vehicle()), null, customer(UUID.randomUUID())));
             expect(409, action(f.order(), "entregar"));
             settlementMode = "PAID"; // Simulates the employee collecting payment in Billing.
             processBillingEvent(payment(f.order(), UUID.randomUUID(), 1, false));
@@ -374,7 +382,7 @@ class SagaMainFlowIT extends HttpPostgresSupport {
         assertThat(historyRow(f.order())).containsEntry("attempts", 2);
     }
 
-    @Test void historyQueryPagesByVehicleAndBranchWithoutIdentityOnEveryRequest() throws Exception {
+    @Test void historyQueryScopesByOwnerAndBranchAcrossPages() throws Exception {
         var f = diagnosisFixture();
         complete(f);
         var secondOrder = createOrder(f.customer(), f.vehicle());
@@ -407,13 +415,13 @@ class SagaMainFlowIT extends HttpPostgresSupport {
         var oldest = expect(200, call("GET", path + "?limit=1&cursor=" + cursor, null, owner));
         assertThat(oldest.path("entries").get(0).path("serviceOrderId").asString()).isEqualTo(f.order().toString());
         assertThat(expect(200, call("GET", path, null)).path("entries").size()).isEqualTo(2);
-        expect(200, call("GET", path + "?cursor=" + cursor, null, customer(anotherCustomer)));
+        expect(404, call("GET", path + "?cursor=" + cursor, null, customer(anotherCustomer)));
         expect(400, call("GET", historyPath(anotherVehicle) + "?cursor=" + cursor, null, customer(anotherCustomer)));
         assertThat(expect(200, call("GET", historyPath(anotherVehicle), null, customer(anotherCustomer))).path("entries").size()).isZero();
         var noPermission = new HashMap<>(owner);
         noPermission.put("X-Authenticated-Permissions", "");
-        expect(200, call("GET", path, null, noPermission));
-        expect(200, call("GET", path, null, Map.of()));
+        expect(403, call("GET", path, null, noPermission));
+        expect(401, call("GET", path, null, Map.of()));
         expect(400, call("GET", path + "?limit=51", null, owner));
         expect(400, call("GET", path + "?cursor=invalid", null, owner));
     }

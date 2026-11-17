@@ -9,6 +9,9 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import org.slf4j.LoggerFactory;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.*;
 import java.nio.file.*;
@@ -16,8 +19,9 @@ import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.assertj.core.api.Assertions.*;
 
+@ExtendWith(OutputCaptureExtension.class)
 class SqsBillingConsumerTest {
-    @Test void pollsWithContractLeaseAndLetsSqsRedrivePoisonMessages() {
+    @Test void pollsWithContractLeaseAndLetsSqsRedrivePoisonMessages(CapturedOutput output) {
         var sqs = mock(SqsClient.class); var handler = mock(ProcessBillingEvent.class);
         var meter = new SimpleMeterRegistry();
         when(sqs.receiveMessage(any(ReceiveMessageRequest.class))).thenAnswer(call -> {
@@ -25,13 +29,17 @@ class SqsBillingConsumerTest {
             assertThat(request.waitTimeSeconds()).isEqualTo(20);
             assertThat(request.visibilityTimeout()).isEqualTo(60);
             assertThat(request.maxNumberOfMessages()).isEqualTo(1);
-            return ReceiveMessageResponse.builder().messages(Message.builder().body("{}").build()).build();
+            var invalid = Message.builder().messageId("invalid-sqs-id")
+                    .body("{\"fixture\":\"private-message-body\"}").build();
+            return ReceiveMessageResponse.builder().messages(invalid).build();
         });
         var consumer = new SqsBillingConsumer(sqs, "mock://billing-os", handler, new BillingEventCodec(), meter);
         for (int receive = 1; receive <= 5; receive++) { consumer.poll(); }
         verify(sqs, never()).deleteMessage(any(DeleteMessageRequest.class));
         verifyNoInteractions(handler);
         assertThat(meter.get("os.billing.failure").tag("stage", "delivery").counter().count()).isEqualTo(5);
+        assertThat(output.getAll()).contains("sqs.message_id=\"invalid-sqs-id\"", "error.code=\"INVALID_BILLING_EVENT\"")
+                .doesNotContain("private-message-body");
         when(sqs.receiveMessage(any(ReceiveMessageRequest.class))).thenThrow(new RuntimeException());
         consumer.poll();
         assertThat(meter.get("os.billing.failure").tag("stage", "poll").counter().count()).isEqualTo(1);
