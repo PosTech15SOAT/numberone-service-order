@@ -6,10 +6,8 @@ on:
       upload_jar:
         type: boolean
         default: false
-  push:
-    branches: [main, develop, 'feature/**', 'codex/**']
   pull_request:
-    branches: [main, develop, feature/fase-1a-base, feature/fase-1b-contratos, feature/integracao, codex/inventory-i2]
+    branches: [develop, main]
 
 permissions:
   contents: read

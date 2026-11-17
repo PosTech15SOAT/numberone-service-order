@@ -47,18 +47,9 @@ spec:
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef: {name: numberone-os-database, key: password}
-            - name: OS_IDENTITY_TOKEN
-              valueFrom:
-                secretKeyRef: {name: numberone-auth-os-identity, key: token, optional: true}
             - name: OS_BRANCH_ID
               valueFrom:
                 configMapKeyRef: {name: numberone-os-runtime, key: branch-id}
-            - name: OS_IDENTITY_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: numberone-auth-os-identity
-                  key: token
-                  optional: true
             - name: DD_SERVICE
               value: numberone-os
             - name: DD_ENV
