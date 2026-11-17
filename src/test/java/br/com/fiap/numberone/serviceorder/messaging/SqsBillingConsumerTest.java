@@ -4,6 +4,10 @@ import br.com.fiap.numberone.serviceorder.application.events.BillingEvent;
 import br.com.fiap.numberone.serviceorder.application.services.ProcessBillingEvent;
 import br.com.fiap.numberone.serviceorder.infrastructure.messaging.*;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import org.slf4j.LoggerFactory;
 import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.*;
@@ -39,7 +43,27 @@ class SqsBillingConsumerTest {
         var event = new BillingEventCodec().decode(body);
         when(handler.process(event)).thenReturn(BillingEvent.Outcome.DUPLICATE);
         var consumer = new SqsBillingConsumer(sqs, "mock://billing-os", handler, codec, meter);
-        consumer.consume(Message.builder().body(body).receiptHandle("receipt").build());
+        var logger = (Logger) LoggerFactory.getLogger(SqsBillingConsumer.class);
+        var captured = new ListAppender<ILoggingEvent>();
+        captured.start();
+        logger.addAppender(captured);
+        try {
+            consumer.consume(Message.builder().body(body).receiptHandle("receipt").build());
+            assertThat(captured.list).hasSize(1);
+            assertThat(captured.list.getFirst().getKeyValuePairs()).anySatisfy(kv -> {
+                assertThat(kv.key).isEqualTo("event.code");
+                assertThat(kv.value).isEqualTo("OS_BILLING_EVENT_PROCESSED");
+            }).anySatisfy(kv -> {
+                assertThat(kv.key).isEqualTo("correlation_id");
+                assertThat(kv.value).isEqualTo(event.correlationId());
+            }).anySatisfy(kv -> {
+                assertThat(kv.key).isEqualTo("service_order.id");
+                assertThat(kv.value).isEqualTo(event.orderId());
+            });
+        } finally {
+            logger.detachAppender(captured);
+            captured.stop();
+        }
         var ordered = inOrder(handler, sqs); ordered.verify(handler).process(event);
         verify(codec).decode(body);
         ordered.verify(sqs).deleteMessage(any(DeleteMessageRequest.class));

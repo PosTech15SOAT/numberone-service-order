@@ -21,16 +21,3 @@ patches:
         SPRING_TASK_SCHEDULING_POOL_SIZE: "3"
         JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=65
         AWS_EC2_METADATA_DISABLED: "true"
-  - target: {kind: Deployment, name: numberone-os}
-    patch: |-
-      apiVersion: apps/v1
-      kind: Deployment
-      metadata: {name: numberone-os}
-      spec:
-        template:
-          spec:
-            containers:
-              - name: os
-                env:
-                  - name: DD_ENV
-                    value: homologation

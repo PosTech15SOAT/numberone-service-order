@@ -46,12 +46,17 @@ public class InternalCorrelationIdFilter extends OncePerRequestFilter {
                     "message", "INVALID_REQUEST", "correlationId", UUID.randomUUID())));
             return;
         }
+        String previousCorrelation = MDC.get(CorrelationIdResolver.MDC_KEY);
         MDC.put(CorrelationIdResolver.MDC_KEY, correlation.toString());
         try {
             response.setHeader(CorrelationIdResolver.HEADER, value);
             chain.doFilter(request, response);
         } finally {
-            MDC.remove(CorrelationIdResolver.MDC_KEY);
+            if (previousCorrelation == null) {
+                MDC.remove(CorrelationIdResolver.MDC_KEY);
+            } else {
+                MDC.put(CorrelationIdResolver.MDC_KEY, previousCorrelation);
+            }
         }
     }
 }

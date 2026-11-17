@@ -50,14 +50,24 @@ spec:
             - name: OS_BRANCH_ID
               valueFrom:
                 configMapKeyRef: {name: numberone-os-runtime, key: branch-id}
+            - name: OS_IDENTITY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: numberone-auth-os-identity
+                  key: token
+                  optional: true
             - name: DD_SERVICE
-              value: numberone-service-order
+              value: numberone-os
             - name: DD_ENV
-              value: production
+              value: academy
             - name: DD_AGENT_HOST
               valueFrom:
                 fieldRef:
                   fieldPath: status.hostIP
+            - name: DD_TRACE_ENABLED
+              value: "true"
+            - name: DD_LOGS_INJECTION
+              value: "true"
             - name: STATSD_ENABLED
               value: "true"
           securityContext:

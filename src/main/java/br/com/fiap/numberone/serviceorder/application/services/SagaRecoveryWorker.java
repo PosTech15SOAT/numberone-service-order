@@ -50,7 +50,11 @@ public class SagaRecoveryWorker {
         try {
             task.run();
         } catch (RuntimeException failure) {
-            LOG.warn("Saga recovery failed identity={} type={}", id, failure.getClass().getSimpleName());
+            try {
+                LOG.atWarn().addKeyValue("event.code", "OS_SAGA_RECOVERY_FAILED")
+                        .addKeyValue("operation.id", id).addKeyValue("error.type", failure.getClass().getName())
+                        .log("Falha na recuperação da Saga");
+            } catch (RuntimeException ignored) { /* Não altera o processamento. */ }
         }
     }
 }

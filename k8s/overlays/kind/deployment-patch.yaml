@@ -26,6 +26,8 @@ spec:
               $patch: delete
             - name: DD_AGENT_HOST
               $patch: delete
+            - name: DD_TRACE_ENABLED
+              $patch: delete
             - name: STATSD_ENABLED
               $patch: delete
           startupProbe:
