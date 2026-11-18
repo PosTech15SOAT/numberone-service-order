@@ -21,6 +21,8 @@ PMD 3.28.0 com bloqueio das prioridades 1 e 2, validação dos contratos da Saga
 imagem Docker e manifests. Relatórios de testes, cobertura e PMD ficam nos
 artifacts da execução. Achados PMD de prioridades 3 a 5 exigem triagem.
 
+O [BDD integrado da Saga](scripts/bdd/README.md) exercita entrega e compensação com os três microsserviços. O [relatório da execução em develop](doc/evidencias/fase-4/bdd-saga-2026-11-17/README.md) registra os SHAs, os cenários e o JUnit.
+
 [ImplementaÃ§Ã£o e demonstraÃ§Ã£o da fase 4](doc/progress/fase-4.md), sobre a
 [mensageria da fase 3](doc/progress/fase-3.md): pacote ativo
 `2.0.0-os-baseline.1`, `readyForOsImplementation=true`, `approvedContract=false`.
