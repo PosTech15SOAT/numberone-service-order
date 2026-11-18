@@ -256,7 +256,7 @@
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/api/admin/ordens-servico",
-            "description": "Use customerId e vehicleId existentes. Informe entryAt em ISO 8601 com fuso. Copie o id retornado para orderId.",
+            "description": "Use customerId e vehicleId existentes. Informe entryAt como data e hora local em ISO 8601, por exemplo 2026-11-17T09:00:00. Copie o id retornado para orderId.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -293,7 +293,7 @@
           "request": {
             "method": "PATCH",
             "url": "{{baseUrl}}/api/admin/ordens-servico/{{orderId}}/iniciar-diagnostico",
-            "description": "Informe a previsão em expectedAt no formato ISO 8601 com fuso.",
+            "description": "Informe a previsão em expectedAt como data e hora local em ISO 8601, por exemplo 2026-11-17T11:00:00.",
             "auth": {
               "type": "bearer",
               "bearer": [
