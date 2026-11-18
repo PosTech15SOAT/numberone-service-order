@@ -1,0 +1,23 @@
+USING RUNNER: behave.runner:Runner
+Funcionalidade: Orquestração da ordem de serviço
+
+  Cenário: Entrega após execução e confirmação do pagamento
+    Dado uma OS diagnosticada com uma peça disponível ... passed in 1.298s
+    E um orçamento aprovado e recebido pela OS ... passed in 1.630s
+    Quando o funcionário repete a solicitação de início com a mesma chave ... passed in 0.148s
+    Então o Inventory baixa a peça uma única vez ... passed in 0.017s
+    Quando a execução é concluída e chega o webhook de pagamento ... passed in 0.211s
+    Então a OS recebe a confirmação pela fila e permite a entrega ... passed in 1.422s
+
+  Cenário: Cancelamento antes da execução após falta de estoque
+    Dado uma OS diagnosticada com uma peça sem estoque ... passed in 0.288s
+    E um orçamento aprovado e recebido pela OS ... passed in 1.131s
+    Quando o funcionário tenta iniciar a execução ... passed in 0.061s
+    Então o início é recusado por falta de estoque ... passed in 0.025s
+    Quando o funcionário confirma o cancelamento integral sem uso físico ... passed in 0.032s
+    Então a Saga encerra o orçamento e compensa a OS sem movimentar estoque ... passed in 41.991s
+
+1 feature passed, 0 failed, 0 skipped
+2 scenarios passed, 0 failed, 0 skipped
+12 steps passed, 0 failed, 0 skipped
+Took 0min 48.254s

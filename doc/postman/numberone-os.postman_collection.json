@@ -1,0 +1,633 @@
+{
+  "info": {
+    "name": "NumberOne · Ordem de Serviço",
+    "description": "Rotas da OS pelo API Gateway em modo full. Preencha baseUrl sem barra final e use um UUID em correlationId. Use as collections de Inventory e Billing para preparar materiais, aprovar orçamento e confirmar pagamento de teste.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "operatorToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "correlationId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "customerCpf",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "customerEmail",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "customerId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "entryAt",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "expectedAt",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "fixtureSuffix",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "inventoryItemId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "operatorCpf",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "operatorPassword",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "orderId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "orderItemId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "serviceId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "startKey",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "vehicleId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "vehiclePlate",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "verifiedAt",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Autenticação e cadastros",
+      "item": [
+        {
+          "name": "Login do operador",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/login",
+            "description": "Preencha operatorCpf e operatorPassword com as credenciais do operador de homologação. Copie accessToken para operatorToken.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              },
+              "raw": "{\n  \"cpf\": \"{{operatorCpf}}\",\n  \"password\": \"{{operatorPassword}}\",\n  \"identityType\": \"OPERATOR\"\n}"
+            },
+            "header": [
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Cadastrar cliente",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/admin/clientes",
+            "description": "Use CPF válido e e-mail de homologação. Copie o id retornado para customerId.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              },
+              "raw": "{\n  \"nome\": \"Cliente Video {{fixtureSuffix}}\",\n  \"tipoDocumento\": \"PESSOA_FISICA\",\n  \"documento\": \"{{customerCpf}}\",\n  \"email\": \"{{customerEmail}}\",\n  \"telefone\": \"00000000000\",\n  \"endereco\": \"Massa sintética Fase 4\",\n  \"ativo\": true\n}"
+            },
+            "header": [
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Cadastrar veículo",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/admin/veiculos",
+            "description": "Preencha customerId e uma placa válida de teste em vehiclePlate. Copie o id retornado para vehicleId.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              },
+              "raw": "{\n  \"placa\": \"{{vehiclePlate}}\",\n  \"marca\": \"Teste\",\n  \"modelo\": \"Fase 4\",\n  \"ano\": 2024,\n  \"idCliente\": \"{{customerId}}\"\n}"
+            },
+            "header": [
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Cadastrar serviço",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/admin/servicos",
+            "description": "Use um sufixo único em fixtureSuffix. Copie o id retornado para serviceId.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              },
+              "raw": "{\n  \"codigo\": \"VID-SRV-{{fixtureSuffix}}\",\n  \"nome\": \"Revisão de teste {{fixtureSuffix}}\",\n  \"descricao\": \"Vídeo Fase 4\",\n  \"tipoServico\": \"REVISAO\",\n  \"valorBase\": \"150.00\",\n  \"tempoEstimadoMinutos\": 30\n}"
+            },
+            "header": [
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Abertura, execução e entrega",
+      "item": [
+        {
+          "name": "Abrir OS",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/admin/ordens-servico",
+            "description": "Use customerId e vehicleId existentes. Informe entryAt como data e hora local em ISO 8601, por exemplo 2026-11-17T09:00:00. Copie o id retornado para orderId.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              },
+              "raw": "{\n  \"idCliente\": \"{{customerId}}\",\n  \"idVeiculo\": \"{{vehicleId}}\",\n  \"descricaoInicial\": \"Vídeo Fase 4 — fluxo de sucesso\",\n  \"descricaoDiagnostico\": \"Avaliação inicial da revisão\",\n  \"dataHoraEntrada\": \"{{entryAt}}\"\n}"
+            },
+            "header": [
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Registrar diagnóstico",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/api/admin/ordens-servico/{{orderId}}/iniciar-diagnostico",
+            "description": "Informe a previsão em expectedAt como data e hora local em ISO 8601, por exemplo 2026-11-17T11:00:00.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              },
+              "raw": "{\n  \"descricaoDiagnosticoFinal\": \"Revisão com substituição de uma peça\",\n  \"dataHoraPrevista\": \"{{expectedAt}}\"\n}"
+            },
+            "header": [
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Adicionar serviço à OS",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/admin/itens-ordem-servico",
+            "description": "Use serviceId e orderId. Copie o id do item para orderItemId.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              },
+              "raw": "{\n  \"idOrdemServico\": \"{{orderId}}\",\n  \"idServico\": \"{{serviceId}}\",\n  \"valor\": \"150.00\",\n  \"quantidade\": 1,\n  \"opcional\": false\n}"
+            },
+            "header": [
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Vincular material",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/admin/itens-ordem-servico/{{orderItemId}}/insumos",
+            "description": "Preencha inventoryItemId com o ID de uma peça cadastrada no Inventory.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              },
+              "raw": "{\n  \"idMaterial\": \"{{inventoryItemId}}\",\n  \"quantidadePrevista\": 1\n}"
+            },
+            "header": [
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Consultar OS e estado da Saga",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/admin/ordens-servico/{{orderId}}",
+            "description": "Após a aprovação do orçamento pelo Billing, aguarde a OS liberar a execução. Após o pagamento, esta mesma consulta ajuda a conferir a liberação da entrega.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Iniciar item",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/api/admin/itens-ordem-servico/{{orderItemId}}/iniciar",
+            "description": "Use um UUID em startKey. Se a resposta indicar pendência, repita com a mesma chave. A OS consulta o Inventory e confirma o início quando a baixa termina.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{startKey}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Concluir item",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/api/admin/itens-ordem-servico/{{orderItemId}}/concluir",
+            "description": "Execute depois da confirmação do início.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Concluir manutenção",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/api/admin/ordens-servico/{{orderId}}/concluir",
+            "description": "Informe a quilometragem de teste. A OS agenda a projeção do histórico.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              },
+              "raw": "{\n  \"quilometragem\": 63542\n}"
+            },
+            "header": [
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Consultar histórico do veículo",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/public/veiculos/{{vehicleId}}/historico-manutencoes",
+            "description": "Consulte a manutenção projetada no DynamoDB pelo vehicleId.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Entregar veículo",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/api/admin/ordens-servico/{{orderId}}/entregar",
+            "description": "A OS só permite a entrega após confirmar a quitação com o Billing.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Compensação",
+      "description": "Use uma OS separada de homologação com orçamento aprovado, tentativa de início rejeitada por falta de saldo e ausência de uso físico conferida.",
+      "item": [
+        {
+          "name": "Solicitar cancelamento integral",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/api/admin/ordens-servico/{{orderId}}/cancelar",
+            "description": "Aponte orderId para a OS desse cenário. Preencha verifiedAt em ISO 8601 com fuso com o horário em que a ausência de uso físico foi conferida.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              },
+              "raw": "{\n  \"scope\": \"FULL\",\n  \"reason\": \"Cancelamento de homologação por falta de estoque\",\n  \"unusedConfirmed\": true,\n  \"physicallyRemoved\": false,\n  \"returnConfirmed\": false,\n  \"verifiedAt\": \"{{verifiedAt}}\",\n  \"evidenceReference\": \"Vídeo Fase 4 — peça sintética sem uso físico\"\n}"
+            },
+            "header": [
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Consultar compensação",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/admin/ordens-servico/{{orderId}}/compensacao",
+            "description": "Consulte a resolução do estoque, o fechamento comercial e o estado da Saga.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{operatorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Correlation-Id",
+                "value": "{{correlationId}}"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

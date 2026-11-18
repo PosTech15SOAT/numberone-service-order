@@ -5,7 +5,23 @@ A fase 2 extrai cadastros locais, diagnÃ³stico, itens e materiais previstos.
 As fases 3 e 4 acrescentam inbox SQS Billing â†’ OS, Saga durÃ¡vel, consumo REST por
 item e entrega com quitaÃ§Ã£o oficial. SQS permanece desabilitado por padrÃ£o;
 os modos `dedicated` e `shared` exigem configuraÃ§Ã£o explÃ­cita.
-NÃ£o hÃ¡ Billing/Inventory reais, novas Lambdas ou deploy nesta entrega.
+Billing e Inventory têm repositórios e deploys próprios. O fluxo integrado
+precisa ser validado no ambiente AWS antes da demonstração.
+
+## CI/CD da Fase 4
+
+Push em `feature/**` abre PR para `develop` quando necessário; o PR executa
+o CI. Push em `develop` abre PR para `main`, também sujeito ao CI. O merge na
+`main` aciona o deploy, que valida o mesmo commit antes de publicar a imagem
+no ECR e atualizar o EKS. O deploy também aceita acionamento manual na `main`.
+A `main` exige PR e o check `Required validation`.
+
+O CI usa Java 25, `mvnw clean verify`, JaCoCo com mínimo de 80% de linhas,
+PMD 3.28.0 com bloqueio das prioridades 1 e 2, validação dos contratos da Saga,
+imagem Docker e manifests. Relatórios de testes, cobertura e PMD ficam nos
+artifacts da execução. Achados PMD de prioridades 3 a 5 exigem triagem.
+
+O [BDD integrado da Saga](scripts/bdd/README.md) exercita entrega e compensação com os três microsserviços. O [relatório da execução em develop](doc/evidencias/fase-4/bdd-saga-2026-11-17/README.md) registra os SHAs, os cenários e o JUnit.
 
 [ImplementaÃ§Ã£o e demonstraÃ§Ã£o da fase 4](doc/progress/fase-4.md), sobre a
 [mensageria da fase 3](doc/progress/fase-3.md): pacote ativo
@@ -27,6 +43,10 @@ O [pacote v1](doc/contracts/saga/v1/README.md) permanece histórico; o pacote at
 é `2.0.0-os-baseline.1`, descrito acima. Veja também o
 [roteiro da fase 1](doc/progress/demonstracao-fase-1.md) e a
 [entrega aos membros](doc/progress/entrega-fase-1.md).
+
+## API para homologação
+
+[Collection Postman da OS](doc/postman/numberone-os.postman_collection.json) · importe no Postman ou no Insomnia. Use o API Gateway em modo full e dados de homologação para exercitar autenticação, abertura, execução, entrega e compensação.
 
 ## Como seguir a Saga no código
 
@@ -129,10 +149,10 @@ atual; identidade por serviço, NetworkPolicies e TLS/mTLS são evoluções futu
 Veja [a decisão e o débito técnico](doc/adr/0004-mvp-sem-autenticacao-http.md).
 
 Logs JSON usam `correlation_id`, sem payloads, identidade ou erros SQL. Datadog
-1.64.2 fixado na imagem; envio ao Datadog nÃ£o demonstrado. CI executa **Required
-validation**; manifestos sÃ£o apenas referÃªncias para revisÃ£o. NÃ£o hÃ¡ workflow de
-deploy. Ver [CONTRIBUTING](CONTRIBUTING.md), [manifestos](k8s/README.md) e
-[governanÃ§a pendente](doc/integration/governance-request.md).
+1.64.2 fixado na imagem; envio ao Datadog ainda exige evidência no ambiente.
+O CI executa o check `Required validation`; o workflow de deploy publica a
+imagem e atualiza o EKS após validar o commit da `main`. Ver
+[CONTRIBUTING](CONTRIBUTING.md) e [manifestos](k8s/README.md).
 
 ### Histórico local com Docker Compose
 
