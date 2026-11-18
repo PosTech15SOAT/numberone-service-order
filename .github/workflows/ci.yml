@@ -36,6 +36,8 @@ jobs:
         run: |
           chmod +x mvnw
           ./mvnw --batch-mode clean verify
+      - name: Analisar código com PMD e bloquear violações críticas
+        run: ./mvnw --batch-mode org.apache.maven.plugins:maven-pmd-plugin:3.28.0:check -Dpmd.failurePriority=2
       - name: Validar os contratos da Saga sem rede
         run: |
           docker build -f scripts/contracts.Dockerfile -t os-contract-validation .
@@ -77,6 +79,7 @@ jobs:
             target/surefire-reports
             target/failsafe-reports
             target/site/jacoco
+            target/pmd.xml
             target/contract-validation.json
             rendered-manifests
           if-no-files-found: warn
