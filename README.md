@@ -44,6 +44,10 @@ O [pacote v1](doc/contracts/saga/v1/README.md) permanece histórico; o pacote at
 [roteiro da fase 1](doc/progress/demonstracao-fase-1.md) e a
 [entrega aos membros](doc/progress/entrega-fase-1.md).
 
+## API para homologação
+
+[Collection Postman da OS](doc/postman/numberone-os.postman_collection.json) · importe no Postman ou no Insomnia. Use o API Gateway em modo full e dados de homologação para exercitar autenticação, abertura, execução, entrega e compensação.
+
 ## Como seguir a Saga no código
 
 A OS orquestra a Saga porque é dona do ciclo de vida da ordem. Billing e
